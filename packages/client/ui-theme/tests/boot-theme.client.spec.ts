@@ -54,8 +54,8 @@ describe('theme boot index transform', () => {
     executeBootstrap(OTHER_WORLD_THEME_ID)
     expect(document.documentElement.style.colorScheme).toBe('dark')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(true)
-    expect(document.body.style.getPropertyValue('--dsw-alias-bg-base')).toBe('rgb(7, 10, 18)')
-    expect(document.body.style.getPropertyValue('--dsw-alias-button-primary-fill')).toBe('rgb(242, 92, 12)')
+    expect(document.body.style.getPropertyValue('--dsw-alias-bg-base')).toBe(OTHER_WORLD_THEME_TOKENS['--dsw-alias-bg-base'])
+    expect(document.body.style.getPropertyValue('--dsw-alias-button-primary-fill')).toBe(OTHER_WORLD_THEME_TOKENS['--dsw-alias-button-primary-fill'])
 
     executeBootstrap('light')
     expect(document.documentElement.style.colorScheme).toBe('light')
