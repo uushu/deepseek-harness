@@ -1,20 +1,32 @@
 /**
  * Appearance preference row registered into the General section item slot
- * (figma 501:30012 'Frame 2117131228'): title + three preference cubes.
+ * (figma 501:30012 'Frame 2117131228'): title + built-in preference cubes.
  * Registered by this package — the theme feature owns its own settings
  * surface. Selection follows the persisted preference, never the resolved
  * active theme.
  */
 import clsx from 'clsx'
 import {
-  IconDarkOutline16, IconFollowsystemOutline16, IconLightOutline16,
+  IconDarkOutline16, IconFollowsystemOutline16, IconLightOutline16, type IconProps,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import { OTHER_WORLD_THEME_ID } from '../other-world-theme.ts'
 import type { ThemePreference } from '../theme-settings.ts'
 import type { ThemeKey } from './locales.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { createAppearanceRowStore } from './settings-store.ts'
 import css from './AppearanceRow.module.css'
+
+/** Four-hole button motif for the built-in Other World theme. */
+const IconOtherWorld16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.2" />
+    <circle cx="5.7" cy="5.7" r="1" fill="currentColor" />
+    <circle cx="10.3" cy="5.7" r="1" fill="currentColor" />
+    <circle cx="5.7" cy="10.3" r="1" fill="currentColor" />
+    <circle cx="10.3" cy="10.3" r="1" fill="currentColor" />
+  </svg>
+)
 
 /** Injected business face: the preference write (t rides the standard locale seat). */
 export interface AppearanceRowInjected {
@@ -27,10 +39,11 @@ export type AppearanceRowComponentProps =
   PropsRuntime<'settings.general.item'> & PropsStore<ReturnType<typeof createAppearanceRowStore>>
   & PropsLocale<'settings.theme'> & AppearanceRowInjected
 
-/** Cube order and icons (figma 501:30015-30017: Light, Dark, System). */
+/** Cube order and icons: Light, Dark, Other World, System. */
 const CUBES: readonly { id: ThemePreference; labelKey: ThemeKey; Icon: typeof IconLightOutline16 }[] = [
   { id: 'light', labelKey: 'appearance.light', Icon: IconLightOutline16 },
   { id: 'dark', labelKey: 'appearance.dark', Icon: IconDarkOutline16 },
+  { id: OTHER_WORLD_THEME_ID, labelKey: 'appearance.otherWorld', Icon: IconOtherWorld16 },
   { id: 'system', labelKey: 'appearance.system', Icon: IconFollowsystemOutline16 },
 ]
 

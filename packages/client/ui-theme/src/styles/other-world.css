@@ -1,0 +1,37 @@
+/* Other World Thread static palette. Semantic aliases remain selected by
+ * ThemeRuntime; this sheet is the color-value authority for the built-in
+ * theme so feature CSS never copies palette literals. */
+body {
+  --dsw-static-other-world-canvas: rgb(7, 10, 18);
+  --dsw-static-other-world-black: rgb(3, 5, 10);
+  --dsw-static-other-world-surface: rgb(15, 22, 34);
+  --dsw-static-other-world-raised: rgb(21, 28, 42);
+  --dsw-static-other-world-elevated: rgb(27, 36, 52);
+  --dsw-static-other-world-elevated-2: rgb(34, 46, 64);
+  --dsw-static-other-world-border: rgb(38, 50, 71);
+  --dsw-static-other-world-focus: rgb(49, 95, 122);
+  --dsw-static-other-world-stitch: rgb(94, 115, 136);
+  --dsw-static-other-world-cyan: rgb(112, 199, 223);
+  --dsw-static-other-world-cyan-strong: rgb(47, 136, 179);
+  --dsw-static-other-world-orange: rgb(242, 92, 12);
+  --dsw-static-other-world-orange-hover: rgb(255, 107, 25);
+  --dsw-static-other-world-amber: rgb(242, 166, 90);
+  --dsw-static-other-world-amber-hover: rgb(255, 184, 112);
+  --dsw-static-other-world-cream: rgb(233, 221, 200);
+  --dsw-static-other-world-white: rgb(244, 241, 234);
+  --dsw-static-other-world-text-secondary: rgb(170, 178, 195);
+  --dsw-static-other-world-text-tertiary: rgb(114, 123, 142);
+  --dsw-static-other-world-success: rgb(109, 157, 130);
+  --dsw-static-other-world-success-secondary: rgb(126, 177, 148);
+  --dsw-static-other-world-error: rgb(192, 75, 86);
+  --dsw-static-other-world-error-secondary: rgb(201, 93, 75);
+  --dsw-static-other-world-cyan-08: rgba(112, 199, 223, 0.08);
+  --dsw-static-other-world-cyan-14: rgba(112, 199, 223, 0.14);
+  --dsw-static-other-world-orange-12: rgba(242, 92, 12, 0.12);
+  --dsw-static-other-world-orange-14: rgba(242, 92, 12, 0.14);
+  --dsw-static-other-world-error-12: rgba(192, 75, 86, 0.12);
+  --dsw-static-other-world-success-18: rgba(109, 157, 130, 0.18);
+  --dsw-static-other-world-amber-16: rgba(242, 166, 90, 0.16);
+  --dsw-static-other-world-stitch-22: rgba(94, 115, 136, 0.22);
+  --dsw-static-other-world-stitch-34: rgba(94, 115, 136, 0.34);
+}

@@ -3,6 +3,7 @@
 import { runInNewContext } from 'node:vm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { injectBootTheme } from '../src/boot-theme.ts'
+import { OTHER_WORLD_THEME_ID, OTHER_WORLD_THEME_TOKENS } from '../src/other-world-theme.ts'
 import type { ThemePreference } from '../src/theme-settings.ts'
 
 const DARK_ATTRIBUTE = 'data-ds-dark-theme'
@@ -27,6 +28,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   document.documentElement.style.removeProperty('color-scheme')
   document.body.removeAttribute(DARK_ATTRIBUTE)
+  for (const name of Object.keys(OTHER_WORLD_THEME_TOKENS)) document.body.style.removeProperty(name)
 })
 
 describe('theme boot index transform', () => {
@@ -45,6 +47,20 @@ describe('theme boot index transform', () => {
     executeBootstrap('light')
     expect(document.documentElement.style.colorScheme).toBe('light')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
+  })
+
+  it('applies Other World before shell mount and clears its tokens when leaving it', () => {
+    mockSystemDark(false)
+    executeBootstrap(OTHER_WORLD_THEME_ID)
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(true)
+    expect(document.body.style.getPropertyValue('--dsw-alias-bg-base')).toBe(OTHER_WORLD_THEME_TOKENS['--dsw-alias-bg-base'])
+    expect(document.body.style.getPropertyValue('--dsw-alias-button-primary-fill')).toBe(OTHER_WORLD_THEME_TOKENS['--dsw-alias-button-primary-fill'])
+
+    executeBootstrap('light')
+    expect(document.documentElement.style.colorScheme).toBe('light')
+    expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
+    expect(document.body.style.getPropertyValue('--dsw-alias-bg-base')).toBe('')
   })
 
   it.each([
