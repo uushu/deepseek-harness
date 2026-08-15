@@ -8,6 +8,7 @@ import type {
   ThemeTokenOverrides,
 } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
+import { OTHER_WORLD_THEME_ID, OTHER_WORLD_THEME_TOKENS } from '../src/other-world-theme.ts'
 
 const make = (host = stubSettingsScope<ThemeSettings>()): {
   ctx: Context
@@ -29,7 +30,7 @@ describe('ThemeRuntime', () => {
     // jsdom matchMedia is absent; system resolves to light.
     expect(snapshot.active.id).toBe('light')
     expect(snapshot.active.colorScheme).toBe('light')
-    expect(snapshot.themes.map(t => t.id)).toEqual(['light', 'dark'])
+    expect(snapshot.themes.map(t => t.id)).toEqual(['light', 'dark', OTHER_WORLD_THEME_ID])
   })
 
   it('setTheme switches, writes through the scope, republishes, and keeps DOM untouched', () => {
@@ -46,6 +47,19 @@ describe('ThemeRuntime', () => {
     theme.setTheme('dark')
     expect(events).toHaveLength(1)
     expect(host.set).toHaveBeenCalledOnce()
+  })
+
+  it('persists Other World and resolves its dark-base semantic tokens', () => {
+    const { theme, events, host } = make()
+    theme.setTheme(OTHER_WORLD_THEME_ID)
+    const snapshot = theme.getTheme()
+    expect(snapshot.preference).toBe(OTHER_WORLD_THEME_ID)
+    expect(snapshot.active.id).toBe(OTHER_WORLD_THEME_ID)
+    expect(snapshot.active.colorScheme).toBe('dark')
+    expect(snapshot.active.tokens['--dsw-alias-bg-base']).toBe(OTHER_WORLD_THEME_TOKENS['--dsw-alias-bg-base'])
+    expect(snapshot.active.tokens['--dsw-alias-button-primary-fill']).toBe('rgb(242, 92, 12)')
+    expect(host.set).toHaveBeenCalledWith('preference', OTHER_WORLD_THEME_ID)
+    expect(events).toHaveLength(1)
   })
 
   it('adopts a published Host section without writing it back', () => {
@@ -69,18 +83,19 @@ describe('ThemeRuntime', () => {
     const { theme } = make()
     expect(() => { theme.setTheme('sepia') }).toThrow('not registered')
     expect(() => theme.register({ id: 'light', colorScheme: 'light', tokens: {} })).toThrow('already registered')
+    expect(() => theme.register({ id: OTHER_WORLD_THEME_ID, colorScheme: 'dark', tokens: {} })).toThrow('already registered')
     expect(() => theme.register({ id: 'system', colorScheme: 'light', tokens: {} })).toThrow('preference')
   })
 
   it('registered themes join the snapshot; disposing the active one resets to default', () => {
     const { theme, events, host } = make()
     const dispose = theme.register({ id: 'sepia', colorScheme: 'light', tokens: { '--dsw-alias-bg-base': 'red' } })
-    expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark', 'sepia'])
+    expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark', OTHER_WORLD_THEME_ID, 'sepia'])
     theme.setTheme('sepia')
     expect(theme.getTheme().active.tokens['--dsw-alias-bg-base']).toBe('red')
     dispose()
     expect(theme.getTheme().preference).toBe('system')
-    expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark'])
+    expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark', OTHER_WORLD_THEME_ID])
     // Custom ids are in-process extension themes; only the built-in product
     // preferences cross the Host settings schema.
     expect(host.set).not.toHaveBeenCalled()
