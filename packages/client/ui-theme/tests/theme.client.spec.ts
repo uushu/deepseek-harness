@@ -57,7 +57,7 @@ describe('ThemeRuntime', () => {
     expect(snapshot.active.id).toBe(OTHER_WORLD_THEME_ID)
     expect(snapshot.active.colorScheme).toBe('dark')
     expect(snapshot.active.tokens['--dsw-alias-bg-base']).toBe(OTHER_WORLD_THEME_TOKENS['--dsw-alias-bg-base'])
-    expect(snapshot.active.tokens['--dsw-alias-button-primary-fill']).toBe('rgb(242, 92, 12)')
+    expect(snapshot.active.tokens['--dsw-alias-button-primary-fill']).toBe(OTHER_WORLD_THEME_TOKENS['--dsw-alias-button-primary-fill'])
     expect(host.set).toHaveBeenCalledWith('preference', OTHER_WORLD_THEME_ID)
     expect(events).toHaveLength(1)
   })
