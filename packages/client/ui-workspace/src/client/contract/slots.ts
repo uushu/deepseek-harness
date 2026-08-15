@@ -204,3 +204,22 @@ export type DeletedConversationsSectionProps =
   PropsRuntime<'settings.section'>
   & InjectFace<DeletedConversationsSectionInjected>
   & PropsLocale<'workspace'>
+
+/**
+ * Archived-conversations settings-section injected share: the two actions a
+ * row drives. The list itself is not request-local — the section reads the
+ * runtime's live archives (useSessions/useWorkspaces) and rows disappear
+ * reactively as the archive set changes.
+ */
+export type ArchivedConversationsSectionInjected = {
+  /** Restore an archived session: it returns to every grouping surface. */
+  unarchive: (sessionId: SessionId) => Promise<void>
+  /** Move an archived session into the trash (leaves the archive set first). */
+  trashSession: (sessionId: SessionId) => Promise<void>
+}
+
+/** Full section props: the settings-shell owner share + the injected actions + the locale seat. */
+export type ArchivedConversationsSectionProps =
+  PropsRuntime<'settings.section'>
+  & InjectFace<ArchivedConversationsSectionInjected>
+  & PropsLocale<'workspace'>

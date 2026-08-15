@@ -78,7 +78,7 @@ function contentText(content: unknown): string {
 function displayTitleOf(entry: TrashedSession): string {
   if (entry.title !== undefined && entry.title !== '') return entry.title
   const parts = entry.cwd?.split(/[\\/]/).filter(part => part !== '')
-  if (parts !== undefined && parts.length > 0) return parts[parts.length - 1]!
+  if (parts !== undefined && parts.length > 0) return parts[parts.length - 1] ?? entry.sessionId
   return entry.sessionId
 }
 
@@ -197,7 +197,10 @@ export function DeletedConversationsSection({
       {previewEntry !== null ? (
         <div className={css.preview}>
           <div className={css.previewHeader}>
-            <button type="button" className={css.back} onClick={closePreview}>{t('trash.preview.back')}</button>
+            <button type="button" className={css.back} onClick={closePreview}>
+              <span className={css.backIcon} aria-hidden="true">←</span>
+              {t('trash.preview.back')}
+            </button>
             <h3 className={css.previewTitle}>{displayTitleOf(previewEntry)}</h3>
             <div className={css.previewMeta}>
               <span>{t('trash.deletedAt', { time: formatDateTime(previewEntry.deletedAt) })}</span>
@@ -276,7 +279,7 @@ export function DeletedConversationsSection({
                   : t('trash.count.other', { n: String(entries.length) })}
               </p>
               <ul className={css.list}>
-                {entries.map((entry) => (
+                {entries.map(entry => (
                   <li key={entry.sessionId} className={css.row}>
                     <div className={css.rowMain}>
                       <span className={css.rowTitle}>{displayTitleOf(entry)}</span>

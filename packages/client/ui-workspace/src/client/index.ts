@@ -16,8 +16,10 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // 'settings.section' entry) for the deleted-conversations section.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {
-  DeletedConversationsSectionInjected, WorkspaceBrowserInjected, WorkspacePickerInjected,
+  ArchivedConversationsSectionInjected, DeletedConversationsSectionInjected,
+  WorkspaceBrowserInjected, WorkspacePickerInjected,
 } from './contract/slots.ts'
+import { ArchivedConversationsSection } from './ArchivedConversationsSection.tsx'
 import { DeletedConversationsSection } from './DeletedConversationsSection.tsx'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './WorkspaceBrowser.tsx'
@@ -25,6 +27,7 @@ import { WorkspacePicker } from './WorkspacePicker.tsx'
 import { en, zh, type WorkspaceKey } from './locales.ts'
 
 export type {
+  ArchivedConversationsSectionInjected, ArchivedConversationsSectionProps,
   DirectoryFlowOwnerProps, DirectoryFlowSlotName, DirectoryPickingHooks, DirectoryPickingInjected,
   DeletedConversationsSectionInjected, DeletedConversationsSectionProps,
   WorkspaceBrowserInjected, WorkspaceBrowserProps, WorkspacePickerInjected, WorkspacePickerProps,
@@ -126,6 +129,10 @@ export function apply(ctx: ClientContext): void {
     restore: async (sessionId) => { await ctx.sessions.restoreSession(sessionId) },
     purge: async (sessionId) => { await ctx.sessions.purgeSession(sessionId) },
   })
+  const archivedSectionInjected = (): ArchivedConversationsSectionInjected => ({
+    unarchive: async (sessionId) => { await ctx.workspaces.unarchiveSession(sessionId) },
+    trashSession: async (sessionId) => { await ctx.sessions.trashSession(sessionId) },
+  })
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => ctx.workspaces.create(input),
     hooks: { directoryFlow: pickerFlowSource },
@@ -165,5 +172,21 @@ export function apply(ctx: ClientContext): void {
       inject: trashSectionInjected,
     },
     DeletedConversationsSection,
+  ))
+  // The archived-conversations settings page: this package owns the archive
+  // domain (the browser's row-menu Archive action feeds it), so it also owns
+  // the settings row that manages the archive. The section reads the
+  // runtime's live archive set through the global hooks; no request-local
+  // list, and no child slots.
+  ctx.slots.inject('settings.section', () => ctx.slots.register(
+    {
+      name: 'settings.section',
+      id: 'archived-conversations',
+      order: 26,
+      label: () => t('archived.nav'),
+      locale: NS,
+      inject: archivedSectionInjected,
+    },
+    ArchivedConversationsSection,
   ))
 }

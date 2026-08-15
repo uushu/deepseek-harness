@@ -91,7 +91,7 @@ describe('DeletedConversationsSection', () => {
     expect(screen.getByText('好的，看这里')).toBeTruthy()
     expect(screen.getByText('调用工具 bash')).toBeTruthy()
     expect(screen.getByText('file.txt')).toBeTruthy()
-    fireEvent.click(screen.getByText('返回列表'))
+    fireEvent.click(screen.getByRole('button', { name: '返回' }))
     expect(screen.getByText('对话 a')).toBeTruthy()
   })
 

@@ -16,6 +16,9 @@
     - button "回收站":
       - img
       - text: 回收站
+    - button "已归档会话":
+      - img
+      - text: 已归档会话
   - button "打开配置文件"
   - button "关闭":
     - img

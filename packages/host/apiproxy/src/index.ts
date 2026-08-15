@@ -130,8 +130,8 @@ export class ApiProxyService extends Service implements ApiProxy {
         ctx.logger.warn(`session trash: startup sweep failed: ${String(error)}`)
       })
     }, 0)
-    timer.unref?.()
-    ctx.effect(() => () => clearTimeout(timer), 'apiProxy.startupSweepTimer')
+    timer.unref()
+    ctx.effect(() => () => { clearTimeout(timer) }, 'apiProxy.startupSweepTimer')
     this.sessions = api.sessions
     this.subagents = api.subagents
     this.workspace = api.workspace

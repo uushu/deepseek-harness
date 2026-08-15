@@ -95,17 +95,28 @@
 
 .back {
   align-self: flex-start;
-  border: none;
-  background: none;
-  padding: 2px 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-surface-l2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
   cursor: pointer;
 }
 
 .back:hover {
-  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-color: var(--dsw-alias-border-l3);
+}
+
+.backIcon {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .previewTitle {

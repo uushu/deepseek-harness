@@ -978,4 +978,34 @@ describe('registry-global session archive', () => {
     const upgraded = await harness({ pool: legacy })
     expect(upgraded.registry.archivedSessionIds).toEqual([])
   })
+
+  it('unarchives durably, restores grouping visibility, and idempotently skips absent ids', async () => {
+    const dir = await makeDir('unarchive-home')
+    const result = await harness({ sessions: [header('hidden', dir, 100)] })
+    await result.registry.archiveSession(SessionId('hidden'))
+    expect(result.registry.archivedSessionIds).toEqual(['hidden'])
+
+    await result.registry.unarchiveSession(SessionId('hidden'))
+    expect(result.registry.archivedSessionIds).toEqual([])
+    expect(storedState(result.pool).archivedSessionIds).toEqual([])
+    // The workspace account never left: unarchiving only shrinks the set.
+    expect(result.registry.list()[0]!.sessionIds).toContain('hidden')
+
+    const changesAfterUnarchive = result.changes.filter(change => change.table === '').length
+    await result.registry.unarchiveSession(SessionId('hidden'))
+    expect(result.registry.archivedSessionIds).toEqual([])
+    // The idempotent repeat neither rewrites the medium nor emits a change.
+    expect(result.changes.filter(change => change.table === '').length).toBe(changesAfterUnarchive)
+  })
+
+  it('unarchives one id and keeps the remaining archive order', async () => {
+    const dir = await makeDir('unarchive-order')
+    const result = await harness({ sessions: [header('a', dir, 100), header('b', dir, 200)] })
+    await result.registry.archiveSession(SessionId('a'))
+    await result.registry.archiveSession(SessionId('b'))
+    expect(result.registry.archivedSessionIds).toEqual(['a', 'b'])
+
+    await result.registry.unarchiveSession(SessionId('a'))
+    expect(result.registry.archivedSessionIds).toEqual(['b'])
+  })
 })

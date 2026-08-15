@@ -530,11 +530,9 @@ describe('Host Workspace increments', () => {
       error: { code: 'workspace-not-found', details: { workspaceId: workspace.workspaceId } },
     })
 
-    const reregistered = await api.workspace.create(request({ path: workspace.path }))
-    expect(reregistered.result).toMatchObject({
-      ok: true,
-      value: { created: true, workspace: expect.objectContaining({ path: workspace.path }) },
-    })
+    const reregistered = expectOk(await api.workspace.create(request({ path: workspace.path })))
+    expect(reregistered.created).toBe(true)
+    expect(reregistered.workspace.path).toBe(workspace.path)
     expect(expectOk(await api.sessions.list(request({}))).items.map(item => item.sessionId)).toContain(sessionId)
     abort.abort()
   })
@@ -589,6 +587,48 @@ describe('Host Workspace increments', () => {
       ok: false,
       error: { code: 'session-not-found', details: { sessionId: 'session-ghost' } },
     })
+    abort.abort()
+  })
+
+  it('unarchives a session, streams the shrunk set once, and keeps the session visible', async () => {
+    const { api, root } = await harness()
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'unarchive-home') }))).workspace
+    const sessionId = SessionId('session-to-unarchive')
+    expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId })))
+
+    const abort = new AbortController()
+    const stream: AsyncIterator<RpcRequest<HostFrame>> =
+      api.events.host(request({}), abort.signal)[Symbol.asyncIterator]()
+    // Drain the archive increment before asserting the unarchive one.
+    const archived = nextHostFrame(stream)
+    expect(expectOk(await api.workspace.archiveSession(request({ sessionId }))).archivedSessionIds)
+      .toEqual([sessionId])
+    expect(await archived).toMatchObject({
+      payload: { type: 'host/archived-sessions-changed', archivedSessionIds: [sessionId] },
+    })
+
+    const changed = nextHostFrame(stream)
+    expect(expectOk(await api.workspace.unarchiveSession(request({ sessionId }))).archivedSessionIds)
+      .toEqual([])
+    expect(await changed).toMatchObject({
+      payload: { type: 'host/archived-sessions-changed', archivedSessionIds: [] },
+    })
+
+    // Accounting and the session itself were never touched; the session list
+    // still shows the row (grouping surfaces decide visibility).
+    const listed = expectOk(await api.workspace.list(request({})))
+    expect(listed.archivedSessionIds).toEqual([])
+    expect(listed.items[0]?.sessionIds).toEqual([sessionId])
+    expect(expectOk(await api.sessions.list(request({}))).items.map(item => item.sessionId)).toContain(sessionId)
+
+    // The idempotent repeat emits no second frame: the next observed frame is
+    // the session-added of a later create, not another archive snapshot.
+    const after = nextHostFrame(stream)
+    expect(expectOk(await api.workspace.unarchiveSession(request({ sessionId }))).archivedSessionIds)
+      .toEqual([])
+    const otherSession = SessionId('session-after-unarchive')
+    expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId: otherSession })))
+    expect((await after).payload.type).not.toBe('host/archived-sessions-changed')
     abort.abort()
   })
 })
@@ -699,5 +739,9 @@ describe('session.delete', () => {
     expect(readFileSync(editedFile, 'utf8')).toBe('original body')
     // The session is detached from the Workspace account.
     expect(expectOk(await api.workspace.list(request({}))).items[0]?.sessionIds).toEqual([])
+    // A deleted live session must not resurface in the main list (regression:
+    // delete removed the log but the attached session object kept listing).
+    const listed = expectOk(await api.sessions.list(request({}))).items
+    expect(listed.map(item => item.sessionId)).not.toContain(sessionId)
   })
 })

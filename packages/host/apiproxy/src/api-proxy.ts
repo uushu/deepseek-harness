@@ -248,14 +248,16 @@ async function retargetWorkspaceFolder(
   const affected = persistence === undefined
     ? []
     : (await persistence.list()).filter(header => header.cwd === oldPath).map(header => header.id)
-  try {
-    for (const sessionId of affected) {
-      await persistence!.retargetCwd(sessionId, newPath)
+  if (affected.length > 0 && persistence !== undefined) {
+    try {
+      for (const sessionId of affected) {
+        await persistence.retargetCwd(sessionId, newPath)
+      }
+    } catch (error) {
+      throw new Error(
+        `workspace rename: could not retarget session cwd under "${oldPath}": ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
-  } catch (error) {
-    throw new Error(
-      `workspace rename: could not retarget session cwd under "${oldPath}": ${error instanceof Error ? error.message : String(error)}`,
-    )
   }
   try {
     await rename(oldPath, newPath)
@@ -1318,6 +1320,13 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
   const presetSwitches = new Map<SessionId, Promise<unknown>>()
   /** Client-chosen identity creation/resume, deduplicated across concurrent retries. */
   const sessionCreations = new Map<SessionId, Promise<Agent>>()
+  /**
+   * Sessions permanently deleted (or purged) in this host run. The durable
+   * log is gone, but a still-attached session object would otherwise keep
+   * listing; this tombstone hides it and refuses history/fork/create until
+   * the host restarts (a restart drops the in-memory zombies for good).
+   */
+  const deletedSessions = new Set<SessionId>()
   /** Serializes path ownership and explicit title checks with Workspace mutations. */
   let workspaceCreationChain = Promise.resolve()
   const pendingQuestions = new Map<RpcId, PendingQuestion>()
@@ -1945,6 +1954,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     // Stop live work first so nothing writes to the session (or its files)
     // while we tear it down.
     if (agent !== undefined) agent.cancel({ kind: 'user' })
+    // An archived session leaves the archive set when deleted: the trash is
+    // the single owner of a deleted conversation, and a restore must return
+    // it to every grouping surface (the archive set no longer applies).
+    await ctx.workspaceRegistry.unarchiveSession(sessionId)
     // Detach from every Workspace, keeping the attachment list so restore
     // can reattach survivors.
     const workspaceIds = await detachSessionWorkspaces(sessionId)
@@ -1993,14 +2006,15 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       }
     }
     const items = ctx.sessions.list()
-      .filter(session => !trashed.has(session.id))
+      .filter(session => !trashed.has(session.id) && !deletedSessions.has(session.id))
       .map(summarizeAttached)
     signal?.throwIfAborted()
     const attached = new Set(items.map(item => item.sessionId))
     const persistence = ctx.get('sessionPersistence')
     if (persistence !== undefined) {
       const cold = (await persistence.list(signal))
-        .filter(meta => !attached.has(meta.id) && meta.cwd !== undefined && !trashed.has(meta.id))
+        .filter(meta => !attached.has(meta.id) && meta.cwd !== undefined
+          && !trashed.has(meta.id) && !deletedSessions.has(meta.id))
       signal?.throwIfAborted()
       for (let offset = 0; offset < cold.length; offset += COLD_SUMMARY_BATCH_SIZE) {
         signal?.throwIfAborted()
@@ -2441,10 +2455,13 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
         const cwd = workspace?.path ?? request.payload.cwd ?? defaults.cwd
         const requestedPreset = request.payload.agentPreset
-        // An explicit id naming a trashed session must not adopt or overwrite
-        // the recoverable log: restoring it is the only way back.
+        // An explicit id naming a trashed or deleted session must not adopt
+        // or overwrite anything: restoring the trash is the only way back for
+        // a trashed id, and a deleted id still has a live in-memory zombie
+        // until the host restarts.
         if (request.payload.sessionId !== undefined
-          && await defaults.sessionTrash?.get(request.payload.sessionId) !== undefined) {
+          && (deletedSessions.has(request.payload.sessionId)
+            || await defaults.sessionTrash?.get(request.payload.sessionId) !== undefined)) {
           return err(request, {
             code: 'session-trashed',
             message: `session "${sessionId}" is in the trash; restore it before creating a session with that id`,
@@ -2515,8 +2532,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const { sessionId, beforeSeq, maxMessages } = request.payload
         // A trashed session's transcript is servable only through the trash
         // preview path (`session.trashHistory`); ordinary history must not
-        // reach the recoverable log.
-        if (await defaults.sessionTrash?.get(sessionId) !== undefined) {
+        // reach the recoverable log, and a deleted session has none.
+        if (deletedSessions.has(sessionId) || await defaults.sessionTrash?.get(sessionId) !== undefined) {
           return err(request, {
             code: 'session-not-found',
             message: `session "${sessionId}" is in the trash and has no ordinary history`,
@@ -2645,8 +2662,9 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       async fork(request) {
         const { sessionId, atSeq } = request.payload
         // Forks read the source log; a trashed source must stay unreachable
-        // until restored (same invariant as `session.history`).
-        if (await defaults.sessionTrash?.get(sessionId) !== undefined) {
+        // until restored, and a deleted source has none (same invariant as
+        // `session.history`).
+        if (deletedSessions.has(sessionId) || await defaults.sessionTrash?.get(sessionId) !== undefined) {
           return err(request, {
             code: 'session-not-found',
             message: `session "${sessionId}" is in the trash and cannot be forked until restored`,
@@ -2958,7 +2976,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             )
           }
         }
-        // 3. Publish the removal frame so every client drops the row. The
+        // 3. Tombstone the id: the still-attached session object must not
+        //    resurface in lists or serve history until the host restarts.
+        deletedSessions.add(sessionId)
+        // 4. Publish the removal frame so every client drops the row. The
         //    events stream subscribes to this host-level deletion notice
         //    (session/disposed fires only for a live session being torn down;
         //    a cold delete never reaches it, and a live delete here does not
@@ -3106,6 +3127,9 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           }
         }
         await trash.remove(sessionId)
+        // Tombstone the id: purging a still-attached session must not let it
+        // resurface in the main list or serve history until host restart.
+        deletedSessions.add(sessionId)
         // The row is already gone from every list; the frame is a no-op for
         // clients but keeps the "removed" invariant for late reconnects.
         ctx.emit('session/deleted', sessionId)
@@ -3496,6 +3520,12 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             details: { sessionId },
           })
         }
+        return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] })
+      },
+
+      async unarchiveSession(request) {
+        const { sessionId } = request.payload
+        await ctx.workspaceRegistry.unarchiveSession(sessionId)
         return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] })
       },
     },

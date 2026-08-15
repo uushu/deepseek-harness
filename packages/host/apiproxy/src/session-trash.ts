@@ -63,7 +63,7 @@ export class SessionTrash extends TrashIndex<SessionTrashEntry> {
    * @param entry - the deletion record to persist.
    */
   add(entry: SessionTrashEntry): Promise<void> {
-    return this.mutate(entries => {
+    return this.mutate((entries) => {
       const rest = entries.filter(candidate => candidate.sessionId !== entry.sessionId)
       return [...rest, entry]
     })

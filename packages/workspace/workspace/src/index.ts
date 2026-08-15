@@ -306,6 +306,26 @@ export class WorkspaceRegistry extends Service {
   }
 
   /**
+   * Unarchive one session durably: it returns to every grouping surface at
+   * its original workspace accounting slot. No session-existence check — the
+   * archive set is the authority. An id outside the set resolves without
+   * writing.
+   * @param sessionId - The session to unarchive.
+   * @returns resolution after durability.
+   */
+  unarchiveSession(sessionId: SessionId): Promise<void> {
+    return this.enqueueOperation(async () => {
+      const archived = this.requireState().archivedSessionIds
+      if (!archived.includes(sessionId)) return
+      const state = this.requireState()
+      await this.setState({
+        ...state,
+        archivedSessionIds: archived.filter(id => id !== sessionId),
+      })
+    })
+  }
+
+  /**
    * Whether a session is live, header-indexed, or present in a fresh
    * persistence listing. Only a definite miss returns false — a failing
    * `sessionPersistence.list()` propagates so storage faults never

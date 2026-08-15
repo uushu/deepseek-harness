@@ -84,7 +84,7 @@ export class TrashIndex<T> {
     }
     const previous = this.mutationChain
     let release: () => void = () => {}
-    this.mutationChain = new Promise<void>(resolve => { release = resolve })
+    this.mutationChain = new Promise<void>((resolve) => { release = resolve })
     await previous
     try {
       await run()
@@ -106,7 +106,7 @@ export class TrashIndex<T> {
     onPurge: (entry: T) => Promise<void>,
   ): Promise<number> {
     let purged = 0
-    await this.mutate(async entries => {
+    await this.mutate(async (entries) => {
       const expired: T[] = []
       const kept: T[] = []
       for (const entry of entries) {

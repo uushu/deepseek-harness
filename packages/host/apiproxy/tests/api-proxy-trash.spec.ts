@@ -20,6 +20,7 @@ import Storage from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
+import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { HostFrame } from '@deepseek-ai/dsh-host-apiproxy/api'
 import type { RpcRequest, RpcResponse } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
 import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
@@ -151,27 +152,30 @@ async function harness() {
 }
 
 /** Seed a session with a title, a user message, an assistant reply, and one tool call/result. */
+// oxlint-disable typescript/no-unnecessary-type-assertion -- session-event union literals need the widening
 function seedConversation(): SessionEvent[] {
+  const userMessage = createUserMessage({
+    content: [{ type: 'text', text: '帮我写一个 hello world' }],
+    source: { kind: 'user' },
+  })
+  const assistantMessage = createAssistantMessage({
+    content: [{ type: 'text', text: '好的，这是代码：`print("hello")`' }],
+    source: { provider: 'test', model: 'test' },
+  })
   return [
     { type: 'turn/start', seq: 0, time: 1, data: { turn: 0 } } as SessionEvent,
-    {
-      type: 'user/message', seq: 1, time: 2,
-      data: { content: [{ type: 'text', text: '帮我写一个 hello world' }], messageSeqs: [1], source: { kind: 'user' } },
-    } as SessionEvent,
+    { type: 'user/message', seq: 1, time: 2, data: userMessage } as SessionEvent,
     { type: 'step/start', seq: 2, time: 3, data: { turn: 0, step: 0 } } as SessionEvent,
     {
       type: 'assistant/message', seq: 3, time: 4,
-      data: {
-        turn: 0,
-        step: 0,
-        message: { content: [{ type: 'text', text: '好的，这是代码：`print("hello")`' }], messageSeqs: [3], source: { kind: 'model' } },
-      },
+      data: { turn: 0, step: 0, message: assistantMessage },
     } as SessionEvent,
     { type: 'step/end', seq: 4, time: 5, data: { turn: 0, step: 0 } } as SessionEvent,
     { type: 'turn/end', seq: 5, time: 6, data: { turn: 0, reason: { kind: 'completed' } } } as SessionEvent,
     { type: 'session/title', seq: 6, time: 7, data: { title: '实验记录', messageSeqs: [], source: { kind: 'user' } } } as SessionEvent,
   ]
 }
+// oxlint-enable typescript/no-unnecessary-type-assertion
 
 describe('session.trash', () => {
   it('hides the session from list/history/fork, keeps the log, and emits the removal frame', async () => {
@@ -179,7 +183,7 @@ describe('session.trash', () => {
     try {
       const sessionId = SessionId('session-trash-me')
       expectOk(await h.api.sessions.create(request({ sessionId, cwd: h.root })))
-      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root } as SessionHeader)
+      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root })
       await h.persistence.append(sessionId, seedConversation())
       expectOk(await h.api.sessions.create(request({ sessionId: SessionId('session-other'), cwd: h.root })))
       // Drain the two creation frames before asserting the removal increment.
@@ -268,7 +272,7 @@ describe('session.restore', () => {
     try {
       const sessionId = SessionId('session-restore-me')
       expectOk(await h.api.sessions.create(request({ sessionId, cwd: h.root })))
-      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root } as SessionHeader)
+      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root })
       await h.persistence.append(sessionId, seedConversation())
       expectOk(await h.api.sessions.trash(request({ sessionId })))
       expect(expectOk(await h.api.sessions.listTrashed(request({}))).items).toHaveLength(1)
@@ -310,7 +314,7 @@ describe('session.purge', () => {
     try {
       const sessionId = SessionId('session-purge-me')
       expectOk(await h.api.sessions.create(request({ sessionId, cwd: h.root })))
-      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root } as SessionHeader)
+      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root })
       await h.persistence.append(sessionId, seedConversation())
       expectOk(await h.api.sessions.trash(request({ sessionId })))
 
@@ -331,6 +335,24 @@ describe('session.purge', () => {
       await h.dispose()
     }
   })
+
+  it('keeps a purged live session out of the main list', async () => {
+    const h = await harness()
+    try {
+      const sessionId = SessionId('purge-live')
+      expectOk(await h.api.sessions.create(request({ sessionId, cwd: h.root })))
+      expectOk(await h.api.sessions.trash(request({ sessionId })))
+      expectOk(await h.api.sessions.purge(request({ sessionId })))
+
+      // The still-attached session object must not resurface now that the
+      // trash row is gone (regression: purge only removed the row, so the
+      // live session reappeared under the main list until host restart).
+      const listed = expectOk(await h.api.sessions.list(request({}))).items
+      expect(listed.map(item => item.sessionId)).not.toContain(sessionId)
+    } finally {
+      await h.dispose()
+    }
+  })
 })
 
 describe('session.trashHistory', () => {
@@ -341,7 +363,7 @@ describe('session.trashHistory', () => {
       // trash index row exists, but there is no artifact to read.
       const sessionId = SessionId('session-empty-artifact')
       expectOk(await h.api.sessions.create(request({ sessionId, cwd: h.root })))
-      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root } as SessionHeader)
+      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root })
       expectOk(await h.api.sessions.trash(request({ sessionId })))
       expect(expectOk(await h.api.sessions.listTrashed(request({}))).items).toHaveLength(1)
 
@@ -384,6 +406,31 @@ describe('session.listTrashed retention', () => {
       expect(items.map(item => item.sessionId)).toEqual([freshId])
       expect(existsSync(join(h.root, `${oldId}.jsonl`))).toBe(false)
       expect(existsSync(join(h.root, `${freshId}.jsonl`))).toBe(true)
+    } finally {
+      await h.dispose()
+    }
+  })
+})
+
+describe('archived sessions and the trash', () => {
+  it('drops an archived session from the archive set when it is trashed, and restore returns it visible', async () => {
+    const h = await harness()
+    try {
+      const sessionId = SessionId('session-archived-then-trashed')
+      expectOk(await h.api.sessions.create(request({ sessionId, cwd: h.root })))
+      await h.persistence.create({ version: 0, id: sessionId, createdAt: Date.now(), cwd: h.root })
+      expectOk(await h.api.workspace.archiveSession(request({ sessionId })))
+      expect(expectOk(await h.api.workspace.list(request({}))).archivedSessionIds).toEqual([sessionId])
+
+      expectOk(await h.api.sessions.trash(request({ sessionId })))
+      // The trash is the single owner of a deleted conversation: the archive
+      // set no longer mentions it, so a restore returns it to every grouping
+      // surface without leaving a stale archive entry behind.
+      expect(expectOk(await h.api.workspace.list(request({}))).archivedSessionIds).toEqual([])
+
+      expectOk(await h.api.sessions.restore(request({ sessionId })))
+      expect(expectOk(await h.api.workspace.list(request({}))).archivedSessionIds).toEqual([])
+      expect(expectOk(await h.api.sessions.list(request({}))).items.map(item => item.sessionId)).toContain(sessionId)
     } finally {
       await h.dispose()
     }

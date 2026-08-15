@@ -506,13 +506,15 @@ export class TestSessions implements ISessions {
   }
 
   /** Restore a trashed session (recorded no-op: the bench's trash has no rows). */
-  async restoreSession(sessionId: SessionId): Promise<void> {
+  restoreSession(sessionId: SessionId): Promise<void> {
     this.calls.push({ method: 'restoreSession', args: [sessionId] })
+    return Promise.resolve()
   }
 
   /** Permanently purge a trashed session (recorded no-op). */
-  async purgeSession(sessionId: SessionId): Promise<void> {
+  purgeSession(sessionId: SessionId): Promise<void> {
     this.calls.push({ method: 'purgeSession', args: [sessionId] })
+    return Promise.resolve()
   }
 
   /** List trashed sessions (the bench's trash is always empty). */

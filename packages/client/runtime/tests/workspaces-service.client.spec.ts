@@ -488,6 +488,36 @@ describe('WorkspaceRuntime', () => {
     expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual(['s-open'])
   })
 
+  it('unarchives a session, projects the shrunk set from the response, and leaves a Host failure untouched', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onList = () => Promise.resolve(ok({
+      items: [
+        { sessionId: sid('s-open'), updatedAt: 2, running: false, blank: false },
+      ],
+    }) as never)
+    await sessions.refresh()
+    sessions.open(sid('s-open'))
+    await workspaces.archiveSession(sid('s-open'))
+    expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual(['s-open'])
+
+    // Unarchiving installs the unary echo; the frame and baseline follow the
+    // same install path as archiving.
+    api.onWorkspaceUnarchiveSession = () => Promise.resolve(ok({ archivedSessionIds: [] }))
+    await expect(workspaces.unarchiveSession(sid('s-open'))).resolves.toBeUndefined()
+    expect(api.callsOf('workspace.unarchiveSession')).toEqual([{ sessionId: 's-open' }])
+    expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual([])
+
+    // A Host failure leaves the set untouched.
+    api.onWorkspaceUnarchiveSession = () => Promise.resolve(err({
+      code: 'session-not-found', message: 'no session ghost', details: { sessionId: sid('ghost') },
+    }))
+    await expect(workspaces.unarchiveSession(sid('ghost'))).rejects.toThrow(/session-not-found/)
+    expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual([])
+  })
+
   it('clears a current archived by a remote frame and shields the set from a stale in-flight baseline', async () => {
     const ctx = new Context()
     const api = new FakeApiClient()
