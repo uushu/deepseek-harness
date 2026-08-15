@@ -1,11 +1,12 @@
 /**
  * Browser theme registry over the `--dsw-*` token stylesheets. The service
- * owns the live theme preference (light/dark/system), resolves `system` through
- * `prefers-color-scheme`, and publishes immutable snapshots; it never touches
- * the DOM — ui-layout's presenter consumes the resolved snapshot. The Host
- * settings scope loads and stores the preference in the user-settings
- * document. The plugin also registers the Appearance preference row into the
- * settings General section — the theme feature owns its own settings surface.
+ * owns the live theme preference (light/dark/other-world/system), resolves
+ * `system` through `prefers-color-scheme`, and publishes immutable snapshots;
+ * it never touches the DOM — ui-layout's presenter consumes the resolved
+ * snapshot. The Host settings scope loads and stores the preference in the
+ * user-settings document. The plugin also registers the Appearance preference
+ * row into the settings General section — the theme feature owns its own
+ * settings surface.
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
@@ -19,6 +20,7 @@ import type { AppearanceRowInjected } from './AppearanceRow.tsx'
 import { AppearanceRow } from './AppearanceRow.tsx'
 import { createAppearanceRowStore } from './settings-store.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
+import { OTHER_WORLD_THEME_ID, OTHER_WORLD_THEME_TOKENS } from '../other-world-theme.ts'
 import {
   DEFAULT_PREFERENCE, isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
   type ThemePreference, type ThemeSettings,
@@ -118,6 +120,11 @@ declare module '@deepseek-ai/cordis' {
 const BUILTIN_THEMES: readonly ThemeDefinition[] = Object.freeze([
   Object.freeze({ id: 'light', colorScheme: 'light' as const, tokens: Object.freeze({}) }),
   Object.freeze({ id: 'dark', colorScheme: 'dark' as const, tokens: Object.freeze({}) }),
+  Object.freeze({
+    id: OTHER_WORLD_THEME_ID,
+    colorScheme: 'dark' as const,
+    tokens: OTHER_WORLD_THEME_TOKENS,
+  }),
 ])
 
 const BUILTIN_INSPECT_TOKENS: readonly ThemeTokenInspection[] = Object.freeze([
@@ -137,15 +144,14 @@ const BUILTIN_INSPECT_TOKENS: readonly ThemeTokenInspection[] = Object.freeze([
 ])
 
 /**
- * Theme registry and preference owner. `light`/`dark` are built in (the base
- * stylesheets carry both palettes); third-party themes register alias-layer
- * overrides. Reads go through {@link getTheme}; preference writes only
- * through {@link setTheme}; continuous sync only through the `theme/change`
- * event. {@link overrideTokens} stacks partial token layers over the active
- * theme without touching the registry.
- * The service holds the `prefers-color-scheme` media query (environment
- * sensing, not presentation) and re-emits when the OS scheme flips while the
- * preference is `system`.
+ * Theme registry and preference owner. `light`, `dark`, and `other-world` are
+ * built in; third-party themes register alias-layer overrides. Reads go
+ * through {@link getTheme}; preference writes only through {@link setTheme};
+ * continuous sync only through the `theme/change` event. {@link overrideTokens}
+ * stacks partial token layers over the active theme without touching the
+ * registry. The service holds the `prefers-color-scheme` media query
+ * (environment sensing, not presentation) and re-emits when the OS scheme
+ * flips while the preference is `system`.
  */
 export class ThemeRuntime {
   private readonly ctx: Context
@@ -238,8 +244,8 @@ export class ThemeRuntime {
   }
 
   /**
-   * Register a theme. Duplicate id throws (single occupant per id; the
-   * built-in pair counts; `system` is a preference, not a registrable id).
+   * Register a theme. Duplicate id throws (single occupant per id; built-in
+   * themes count; `system` is a preference, not a registrable id).
    * @param definition - theme id, colorScheme, and alias-token overrides.
    * @returns disposer. Disposing the theme backing the active preference
    * resets the preference to the default so the UI never keeps tokens of an
@@ -293,8 +299,8 @@ export class ThemeRuntime {
     const resolvedId = this.preference === 'system'
       ? (this.media?.matches === true ? 'dark' : 'light')
       : this.preference
-    // Both built-ins always exist; a registered preference id resolves or has
-    // been reset by its disposer, so the lookup cannot miss.
+    // Every persistable concrete preference is a built-in theme, while
+    // registered extension ids are reset by their disposer if removed.
     const active = this.themes.find(t => t.id === resolvedId)
     /* v8 ignore next 2 -- needs a registry without light/dark, which register()/dispose() cannot produce */
     if (active === undefined) throw new Error(`theme registry lost "${resolvedId}"`)
