@@ -24,8 +24,8 @@
 }
 
 /* Appearance cube (figma '.Selector Cube' 276x82 r16, pad 20/32, centered
- * icon-over-label column, gap 4); flexed down from the figma width so all
- * three sit on one row in the 800 panel, wrapping when narrower. */
+ * icon-over-label column, gap 4); flexed down from the figma width so the
+ * built-in choices share each row and wrap when the panel narrows. */
 .themeCube {
   box-sizing: border-box;
   flex: 1 1 180px;
