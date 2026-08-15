@@ -282,6 +282,75 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
   }
 
   /**
+   * Retarget a materialized session's cwd — the workspace folder it lives in
+   * was renamed. Rewrites the artifact's header line with the new cwd and
+   * relocates the artifact under the new project directory; the event body is
+   * carried verbatim. The retargeted artifact is published before the old one
+   * is removed, so an interrupted move never loses the log.
+   * @param id - the persisted session to retarget.
+   * @param cwd - the new absolute working directory.
+   */
+  override async retargetCwd(id: SessionId, cwd: string): Promise<void> {
+    await this.ensureRootEncoding()
+    const oldPath = await this.findLog(id)
+    if (oldPath === undefined) return
+    const raw = await this.readRaw(id)
+    if (raw === undefined) return
+    const { meta, content } = raw
+    const newline = content.indexOf('\n')
+    if (newline === -1) {
+      throw new Error(`corrupt session log "${oldPath}": header line is missing`)
+    }
+    const newPath = logPath(this.root, cwd, id, this.compression)
+    if (newPath === oldPath) return
+    await this.rejectOppositeArtifact(cwd, id)
+    if (await this.exists(newPath)) {
+      throw new Error(`refusing to retarget "${id}" to "${cwd}": a log already exists at "${newPath}"`)
+    }
+    // Rebuild the artifact: the retargeted header line + the exact event body.
+    const header = JSON.stringify(toHeaderLine({ ...meta, cwd })) + '\n'
+    const body = content.slice(newline + 1)
+    const retargeted = this.compression === 'none'
+      ? header + body
+      : Buffer.concat([
+        await compressZstdFrame(header),
+        ...(body === '' ? [] : [await compressZstdFrame(body)]),
+      ])
+    const project = projectDir(this.root, cwd)
+    const dir = sessionDir(this.root, cwd, id)
+    await mkdir(this.root, { recursive: true, mode: 0o700 })
+    await mkdir(project, { recursive: true, mode: 0o700 })
+    await mkdir(dir, { recursive: true, mode: 0o700 })
+    const tmp = await this.writeSyncedTempFile(newPath, retargeted)
+    try {
+      if (process.platform === 'win32') {
+        await publishNewFileWin32(tmp, newPath)
+      } else {
+        await link(tmp, newPath)
+        await rm(tmp, { force: true })
+        // The new directory entry must be durable before the old artifact is
+        // removed, or a power loss between the two could lose the log.
+        await this.syncDirPosix(dir)
+      }
+    } catch (error) {
+      await rm(tmp, { force: true })
+      throw error
+    }
+    await rm(oldPath, { force: true })
+    // Prune the empty session/project directories the old artifact left
+    // behind, then make the removal durable (best-effort: a pruned project
+    // directory is gone, so its sync cannot run).
+    await this.pruneEmptyDirs(oldPath)
+    if (process.platform !== 'win32') {
+      try {
+        await this.syncDirPosix(dirname(oldPath))
+      } catch {
+        // The old project directory was pruned or is otherwise gone.
+      }
+    }
+  }
+
+  /**
    * Read a file's bytes under a revision-stable loop: a writer appending
    * between stat and readFile would yield a torn physical file, so retry
    * while the stat revision changes.
@@ -905,6 +974,21 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
   private async rejectOppositeArtifact(cwd: string | undefined, id: SessionId): Promise<void> {
     const path = logPath(this.root, cwd, id, this.oppositeCompression())
     if (await this.exists(path)) throw this.encodingMismatch(path)
+  }
+
+  /** Remove the session/project directories an artifact move left empty. */
+  private async pruneEmptyDirs(artifactPath: string): Promise<void> {
+    const session = dirname(artifactPath)
+    const project = dirname(session)
+    for (const candidate of [session, project]) {
+      try {
+        // Non-recursive: a directory that still holds anything (a sibling
+        // session, a stray artifact) rejects and is left untouched.
+        await rm(candidate, { force: true })
+      } catch {
+        // Not empty or still in use — keep it.
+      }
+    }
   }
 
   private oppositeCompression(): JsonlCompression {

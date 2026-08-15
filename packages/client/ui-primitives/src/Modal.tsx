@@ -20,6 +20,10 @@ import css from './Modal.module.css'
  * @param props.children - body (inputs, etc.).
  * @param props.footer - action row (Cancel / Create).
  * @param props.contentClassName - optional class for a scrollable content region.
+ * @param props.titleClassName - optional class for the dialog title (danger
+ * dialogs restyle it, e.g. error red).
+ * @param props.descriptionClassName - optional class for the description
+ * paragraph (danger dialogs restyle it, e.g. error red).
  * @param props.headless - render children directly in the card (no default
  * header/close/body chrome) for dialogs whose figma frame owns its own
  * header structure; mask, card, Escape, and aria-label remain.
@@ -28,7 +32,8 @@ import css from './Modal.module.css'
  * @returns null when closed; otherwise the overlay tree.
  */
 export function Modal({
-  open, onClose, title, closeLabel = 'Close', description, children, footer, className, contentClassName, headless = false,
+  open, onClose, title, closeLabel = 'Close', description, children, footer, className, contentClassName,
+  titleClassName, descriptionClassName, headless = false,
 }: {
   open: boolean
   onClose: () => void
@@ -39,6 +44,8 @@ export function Modal({
   footer?: ReactNode
   className?: string
   contentClassName?: string
+  titleClassName?: string
+  descriptionClassName?: string
   headless?: boolean
 }) {
   useEffect(() => {
@@ -67,13 +74,13 @@ export function Modal({
             <>
               <div className={clsx(css.content, contentClassName)}>
                 <div className={css.header}>
-                  <h2 className={css.title}>{title}</h2>
+                  <h2 className={clsx(css.title, titleClassName)}>{title}</h2>
                   <button type="button" className={css.close} aria-label={closeLabel} onClick={onClose}>
                     <IconCloseOutline16 size={14} />
                   </button>
                 </div>
                 {description !== undefined && description !== '' && (
-                  <p className={css.description}>{description}</p>
+                  <p className={clsx(css.description, descriptionClassName)}>{description}</p>
                 )}
                 {children !== undefined && <div className={css.body}>{children}</div>}
               </div>

@@ -1619,3 +1619,52 @@ describe('JsonlSessionPersistence: edge cases', () => {
   })
 
 })
+
+describe('JsonlSessionPersistence: cwd retarget', () => {
+  let ctx: Context
+  let root: string
+
+  beforeEach(async () => {
+    root = await freshRoot()
+    ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
+  })
+
+  it('rewrites the header line and relocates the artifact to the new project directory', async () => {
+    const m = meta('retarget', '/proj/old')
+    await ctx.sessionPersistence.create(m)
+    await ctx.sessionPersistence.append(m.id, oneTurnLog())
+    const oldPath = rawLogPath(root, '/proj/old', m.id)
+    const newPath = rawLogPath(root, '/proj/new', m.id)
+    const original = await readFile(oldPath, 'utf8')
+    expect(original.split('\n', 1)[0]).toContain('"/proj/old"')
+
+    await ctx.sessionPersistence.retargetCwd(m.id, '/proj/new')
+
+    // The old artifact is gone; the retargeted one carries the new cwd in its
+    // header line and the exact event body.
+    await expect(readFile(oldPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    const raw = await readFile(newPath, 'utf8')
+    expect(raw.split('\n', 1)[0]).toContain('"/proj/new"')
+    expect(raw.slice(raw.indexOf('\n') + 1)).toBe(original.slice(original.indexOf('\n') + 1))
+    expect((await ctx.sessionPersistence.list()).find(h => h.id === m.id)?.cwd).toBe('/proj/new')
+    expect((await ctx.sessionPersistence.load(m.id)).events).toEqual(oneTurnLog())
+  })
+
+  it('is a no-op for a created-but-never-appended session and for a same-cwd retarget', async () => {
+    const lazy = meta('retarget-lazy', '/proj/a')
+    await ctx.sessionPersistence.create(lazy)
+    await ctx.sessionPersistence.retargetCwd(lazy.id, '/proj/b')
+    expect((await ctx.sessionPersistence.list()).map(h => h.id)).not.toContain(lazy.id)
+    await expect(ctx.sessionPersistence.load(lazy.id)).rejects.toThrow()
+
+    const same = meta('retarget-same', '/proj/a')
+    await ctx.sessionPersistence.create(same)
+    await ctx.sessionPersistence.append(same.id, oneTurnLog())
+    const path = rawLogPath(root, '/proj/a', same.id)
+    const before = await readFile(path, 'utf8')
+    await ctx.sessionPersistence.retargetCwd(same.id, '/proj/a')
+    expect(await readFile(path, 'utf8')).toBe(before)
+  })
+})

@@ -13,6 +13,7 @@ import type { Wire } from './rpc.schema.ts'
 import type {
   HistoryEntry, ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning,
   ModelReasoningEffort, ModelSelection, SessionListMetadata, SessionProjectionsBlock, SessionSearchItem, SessionSummary,
+  TrashedSession,
 } from './sessions.ts'
 import type { ToolEventView } from './events.ts'
 import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
@@ -351,3 +352,77 @@ export const sessionCancelRequestSchema = z.object({
 export const sessionCancelValueSchema = z.object({
   accepted: z.literal(true),
 }) satisfies z.ZodType<Wire<ResponseValue<'session.cancel'>>>
+
+/** session.delete request payload. */
+export const sessionDeleteRequestSchema = z.object({
+  sessionId: sessionIdSchema,
+}) satisfies z.ZodType<Wire<RequestPayload<'session.delete'>>>
+
+/** session.delete response value. */
+export const sessionDeleteValueSchema = z.object({
+  deleted: z.literal(true),
+}) satisfies z.ZodType<Wire<ResponseValue<'session.delete'>>>
+
+/** One recoverable-deleted session row (session.listTrashed). */
+export const trashedSessionSchema = z.object({
+  sessionId: sessionIdSchema,
+  deletedAt: z.number(),
+  title: z.string().optional(),
+  cwd: z.string().optional(),
+  parentSessionId: sessionIdSchema.optional(),
+  origin: z.literal('subagent').optional(),
+  agentPreset: z.string().optional(),
+}) as unknown as z.ZodType<Wire<TrashedSession>>
+
+/** session.trash request payload (deletion is conversation-only; files are never touched). */
+export const sessionTrashRequestSchema = z.object({
+  sessionId: sessionIdSchema,
+}) satisfies z.ZodType<Wire<RequestPayload<'session.trash'>>>
+
+/** session.trash response value. */
+export const sessionTrashValueSchema = z.object({
+  trashed: z.literal(true),
+}) satisfies z.ZodType<Wire<ResponseValue<'session.trash'>>>
+
+/** session.restore request payload. */
+export const sessionRestoreRequestSchema = z.object({
+  sessionId: sessionIdSchema,
+}) satisfies z.ZodType<Wire<RequestPayload<'session.restore'>>>
+
+/** session.restore response value. */
+export const sessionRestoreValueSchema = z.object({
+  restored: z.literal(true),
+}) satisfies z.ZodType<Wire<ResponseValue<'session.restore'>>>
+
+/** session.purge request payload. */
+export const sessionPurgeRequestSchema = z.object({
+  sessionId: sessionIdSchema,
+}) satisfies z.ZodType<Wire<RequestPayload<'session.purge'>>>
+
+/** session.purge response value. */
+export const sessionPurgeValueSchema = z.object({
+  purged: z.literal(true),
+}) satisfies z.ZodType<Wire<ResponseValue<'session.purge'>>>
+
+/** session.listTrashed request payload (reserved cursor seat, unimplemented in v1). */
+export const sessionListTrashedRequestSchema = z.object({
+  cursor: z.string().optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'session.listTrashed'>>>
+
+/** session.listTrashed response value. */
+export const sessionListTrashedValueSchema: z.ZodType<Wire<ResponseValue<'session.listTrashed'>>> = z.object({
+  items: z.array(trashedSessionSchema),
+})
+
+/** session.trashHistory request payload (same paging fields as session.history). */
+export const sessionTrashHistoryRequestSchema = z.object({
+  sessionId: sessionIdSchema,
+  beforeSeq: z.number().int().nonnegative().optional(),
+  maxMessages: z.number().int().positive().optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'session.trashHistory'>>>
+
+/** session.trashHistory response value. */
+export const sessionTrashHistoryValueSchema: z.ZodType<Wire<ResponseValue<'session.trashHistory'>>> = z.object({
+  events: z.array(historyEntrySchema),
+  hasMore: z.boolean(),
+})

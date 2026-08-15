@@ -947,3 +947,30 @@ describe('surface field round-trip', () => {
     await fiber.dispose()
   })
 })
+
+describe('SqliteSessionPersistence: cwd retarget', () => {
+  it('updates the stored cwd, bumps the revision, and keeps the log intact', async () => {
+    const { ctx, dispose } = await backend()
+    const m = meta('retarget', '/proj/old')
+    await ctx.sessionPersistence.create(m)
+    await ctx.sessionPersistence.append(m.id, oneTurnLog())
+    const before = await ctx.sessionPersistence.listSnapshots()
+    const beforeRevision = before.find(entry => entry.header.id === m.id)!.revision
+
+    await ctx.sessionPersistence.retargetCwd(m.id, '/proj/new')
+
+    expect((await ctx.sessionPersistence.list()).find(h => h.id === m.id)?.cwd).toBe('/proj/new')
+    expect((await ctx.sessionPersistence.load(m.id)).events).toEqual(oneTurnLog())
+    const after = await ctx.sessionPersistence.listSnapshots()
+    const afterRevision = after.find(entry => entry.header.id === m.id)!.revision
+    expect(String(afterRevision)).not.toBe(String(beforeRevision))
+    await dispose()
+  })
+
+  it('rejects an unknown session id', async () => {
+    const { ctx, dispose } = await backend()
+    await expect(ctx.sessionPersistence.retargetCwd(SessionId('ghost'), '/proj/new'))
+      .rejects.toThrow(/no stored session row/)
+    await dispose()
+  })
+})

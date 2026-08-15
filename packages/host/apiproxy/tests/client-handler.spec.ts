@@ -21,6 +21,7 @@ function scriptedApi(overrides: {
   sessions?: Partial<ApiProxy['sessions']>
   subagents?: Partial<ApiProxy['subagents']>
   host?: Partial<ApiProxy['host']>
+  workspace?: Partial<ApiProxy['workspace']>
   skills?: Partial<ApiProxy['skills']>
   agentPresets?: Partial<ApiProxy['agentPresets']>
   events?: Partial<ApiProxy['events']>
@@ -61,6 +62,12 @@ function scriptedApi(overrides: {
       }),
       updateQueue: r => ok(r, { accepted: true as const }),
       cancel: r => ok(r, { accepted: true as const }),
+      delete: r => ok(r, { deleted: true as const }),
+      trash: r => ok(r, { trashed: true as const }),
+      restore: r => ok(r, { restored: true as const }),
+      purge: r => ok(r, { purged: true as const }),
+      listTrashed: r => ok(r, { items: [] }),
+      trashHistory: r => ok(r, { events: [], hasMore: false }),
       ...overrides.sessions,
     },
     subagents: {
@@ -88,6 +95,7 @@ function scriptedApi(overrides: {
       insertBefore: r => ok(r, { workspaceIds: [r.payload.workspaceId] }),
       insertSessionBefore: r => ok(r, { workspace: { workspaceId: 'w1' as never, path: '/t', title: 't', sessionIds: [], createdAt: '0', updatedAt: '0' } }),
       archiveSession: r => ok(r, { archivedSessionIds: [r.payload.sessionId] }),
+      ...overrides.workspace,
     },
     skills: { list: r => ok(r, { skills: [] }), ...overrides.skills },
     agentPresets: {

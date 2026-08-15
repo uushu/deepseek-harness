@@ -134,6 +134,24 @@ export type HostFrame =
     cwd?: string
     agentPreset?: string
   }
+  /**
+   * A trashed session was restored: same summary fields as session-added
+   * (the restore impl derives them from the durable header and the blank bit
+   * recorded at trash time), plus the last durable title when the kept log
+   * carries one — the client dropped its projection store on removal, so the
+   * title must ride the frame or the row comes back nameless. Clients re-add
+   * the row without a refresh.
+   */
+  | {
+    type: 'host/session-restored'
+    sessionId: SessionId
+    blank: boolean
+    title?: string
+    parentSessionId?: SessionId
+    origin?: 'subagent'
+    cwd?: string
+    agentPreset?: string
+  }
   | { type: 'host/session-removed'; sessionId: SessionId }
   | { type: 'host/session-status'; sessionId: SessionId; running: boolean }
   | { type: 'host/agent-error'; sessionId: SessionId; message: string }

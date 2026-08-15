@@ -9,7 +9,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  RpcResult, SessionId, SubagentAddress,
+  HistoryEntry, RpcResult, SessionId, SubagentAddress, TrashedSession,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { HostObservable, SessionMaybeProvideInfo } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AgentContext } from '../agents/scope.ts'
@@ -95,6 +95,63 @@ export interface ISessions {
    * @throws when the fork fails, or when a requested child-title rename fails after creation.
    */
   fork(opts: { sessionId: SessionId; atSeq?: number; increaseTitle?: boolean }): Promise<SessionId>
+  /**
+   * Permanently delete a session: the Host stops its live agent, restores
+   * files its `write`/`edit` calls changed, removes files it created, detaches
+   * it from every Workspace, and removes its durable log. Destructive and
+   * irreversible — callers must confirm with the user first.
+   * @param sessionId - session to delete.
+   * @throws when the session is unknown or a session-backed subagent.
+   */
+  deleteSession(sessionId: SessionId): Promise<void>
+  /**
+   * Move a session into the trash (recoverable delete): the Host stops its
+   * live agent, detaches it from every Workspace, and keeps the durable log
+   * for the 30-day retention window. Trashed sessions disappear from the
+   * list until restored or purged. Deletion is conversation-only — files
+   * stay as the session left them, so a restore brings back a consistent
+   * conversation+files pair.
+   * @param sessionId - session to trash.
+   * @throws when the session is unknown or a session-backed subagent.
+   */
+  trashSession(sessionId: SessionId): Promise<void>
+  /**
+   * Restore a trashed session: the Host reattaches it to its surviving
+   * Workspaces and the list re-adds the row. The conversation comes back;
+   * the files stay exactly as the deletion scope left them.
+   * @param sessionId - trashed session to restore.
+   * @throws when the session is not in the trash.
+   */
+  restoreSession(sessionId: SessionId): Promise<void>
+  /**
+   * Permanently destroy a trashed session: the Host removes its durable log
+   * and drops the trash row. Irreversible.
+   * @param sessionId - trashed session to purge.
+   * @throws when the session is not in the trash.
+   */
+  purgeSession(sessionId: SessionId): Promise<void>
+  /**
+   * List trashed sessions (newest deletion first); expired entries are
+   * permanently purged by the Host before the list is assembled.
+   * @param signal - cancellation for a superseded listing.
+   * @returns the trash rows, or a business/transport error.
+   */
+  listTrashed(signal?: AbortSignal): Promise<RpcResult<{ items: TrashedSession[] }>>
+  /**
+   * Read one paged window of a trashed session's history for the trash
+   * page's read-only preview.
+   * @param sessionId - the trashed session to preview.
+   * @param beforeSeq - page backwards from this event seq (absent = tail).
+   * @param maxMessages - page size in whole messages.
+   * @param signal - cancellation for a superseded read.
+   * @returns the paged history entries, or a business/transport error.
+   */
+  trashHistory(
+    sessionId: SessionId,
+    beforeSeq: number | undefined,
+    maxMessages: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<RpcResult<{ events: HistoryEntry[]; hasMore: boolean }>>
   /**
    * Register a per-session standard-props provider (hooks become `use<Name>`
    * selector hooks on the render side; props spread verbatim).

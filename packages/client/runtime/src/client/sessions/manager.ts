@@ -3,8 +3,8 @@
 // List data never enters zustand; React connects via subscribe/getListSnapshot.
 
 import type {
-  IApiClient, HostFrame, MuxFrame, RpcError, RpcRequest, RpcResult, SessionId,
-  SessionSummary, SubagentAddress, SubagentCatalog, JobView, WorkspaceId,
+  HistoryEntry, IApiClient, HostFrame, MuxFrame, RpcError, RpcRequest, RpcResult, SessionId,
+  SessionSummary, SubagentAddress, SubagentCatalog, JobView, TrashedSession, WorkspaceId,
 } from '@deepseek-ai/dsh-api-remotes/client'
 // Value import from the inline-safe wire layer (not the connection plugin):
 // plugin-to-plugin value imports are a bundle purity error.
@@ -603,6 +603,114 @@ export class SessionManager {
   }
 
   /**
+   * Permanently delete a session on the Host: stops its live agent, rolls
+   * back file changes, detaches it from Workspaces, and removes its durable
+   * log. The Host's `host/session-removed` frame performs the local list
+   * removal.
+   * @param sessionId - session to delete.
+   * @returns the wire result.
+   */
+  async delete(sessionId: SessionId): Promise<RpcResult<{ deleted: true }>> {
+    try {
+      const { result } = await this.api.sessions.delete({ sessionId })
+      return result
+    } catch (error) {
+      return transportError(error)
+    }
+  }
+
+  /**
+   * Move a session into the trash on the Host: stops its live agent,
+   * detaches it from Workspaces, and keeps the durable log for the 30-day
+   * retention window (files are never touched — deletion is
+   * conversation-only). The Host's `host/session-removed` frame performs the
+   * local list removal.
+   * @param sessionId - session to trash.
+   * @returns the wire result.
+   */
+  async trash(sessionId: SessionId): Promise<RpcResult<{ trashed: true }>> {
+    try {
+      const { result } = await this.api.sessions.trash({ sessionId })
+      return result
+    } catch (error) {
+      return transportError(error)
+    }
+  }
+
+  /**
+   * Restore a trashed session on the Host: reattaches it to its surviving
+   * Workspaces and drops the trash row. The Host's `host/session-restored`
+   * frame re-adds the local list row.
+   * @param sessionId - trashed session to restore.
+   * @returns the wire result.
+   */
+  async restore(sessionId: SessionId): Promise<RpcResult<{ restored: true }>> {
+    try {
+      const { result } = await this.api.sessions.restore({ sessionId })
+      return result
+    } catch (error) {
+      return transportError(error)
+    }
+  }
+
+  /**
+   * Permanently destroy a trashed session on the Host: removes its durable
+   * log and drops the trash row. Irreversible.
+   * @param sessionId - trashed session to purge.
+   * @returns the wire result.
+   */
+  async purge(sessionId: SessionId): Promise<RpcResult<{ purged: true }>> {
+    try {
+      const { result } = await this.api.sessions.purge({ sessionId })
+      return result
+    } catch (error) {
+      return transportError(error)
+    }
+  }
+
+  /**
+   * List trashed sessions on the Host (newest deletion first; expired
+   * entries are swept before the list is assembled).
+   * @param signal - cancellation for a superseded listing.
+   * @returns the trash rows, or a business/transport error.
+   */
+  async listTrashed(signal?: AbortSignal): Promise<RpcResult<{ items: TrashedSession[] }>> {
+    try {
+      const { result } = await this.api.sessions.listTrashed({}, signal)
+      return result
+    } catch (error) {
+      return transportError(error)
+    }
+  }
+
+  /**
+   * Read one paged window of a trashed session's history for the trash
+   * page's read-only preview.
+   * @param sessionId - the trashed session to preview.
+   * @param beforeSeq - page backwards from this event seq (absent = tail).
+   * @param maxMessages - page size in whole messages.
+   * @param signal - cancellation for a superseded read.
+   * @returns the paged history entries, or a business/transport error.
+   */
+  async trashHistory(
+    sessionId: SessionId,
+    beforeSeq: number | undefined,
+    maxMessages: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<RpcResult<{ events: HistoryEntry[]; hasMore: boolean }>> {
+    try {
+      const { result } = await this.api.sessions.trashHistory({
+        sessionId,
+        ...beforeSeq === undefined ? {} : { beforeSeq },
+        ...maxMessages === undefined ? {} : { maxMessages },
+      }, signal)
+      return result
+    } catch (error) {
+      return transportError(error)
+    }
+  }
+
+  /**
    * Insert-or-enrich a locally synthesized summary: a new id prepends; an
    * existing entry only gains fields it lacks (the session-added frame and the
    * create() echo race — whichever lands second must fill the placeholder's
@@ -810,6 +918,38 @@ export class SessionManager {
         if (frame.parentSessionId !== undefined
           && (this.selected === frame.parentSessionId || this.openCatalogs.has(frame.parentSessionId))) {
           this.scheduleCatalogRefresh(frame.parentSessionId)
+        }
+        return
+      }
+      case 'host/session-restored': {
+        // A trashed session came back: same summary projection as a
+        // session-added frame, so the row reappears without a list refresh.
+        this.mergeSummary({
+          sessionId: frame.sessionId, updatedAt: Date.now(), running: false, blank: frame.blank,
+          ...(frame.parentSessionId !== undefined ? { parentSessionId: frame.parentSessionId } : {}),
+          ...(frame.origin !== undefined ? { origin: frame.origin } : {}),
+          ...(frame.cwd !== undefined ? { cwd: frame.cwd } : {}),
+          ...(frame.agentPreset !== undefined ? { agentPreset: frame.agentPreset } : {}),
+        })
+        // The removal frame flagged a resident (staged) instance removed,
+        // which locks its composer; the restore frame is the re-arm signal.
+        // Blank/running sync mirrors the session-added arm.
+        const restored = this.sessions.get(frame.sessionId)
+        restored?.handleRestored()
+        restored?.handleBlank(frame.blank)
+        restored?.handleRunning(false)
+        // The durable title rides the frame: the projection store was dropped
+        // on removal, so without a re-seed the row comes back nameless. Seq 0
+        // is a safe display baseline — a trashed session's title is immutable,
+        // and any later baseline/frame (higher seq, same value) supersedes it.
+        if (frame.title !== undefined && frame.title !== '') {
+          const store = this.projectionStore(frame.sessionId)
+          store.apply('title', frame.title, 0)
+          // A resident instance's store was orphaned by the removal's map
+          // drop; keep its useProjection('title') face in sync with the row.
+          if (restored !== undefined && restored.projections !== store) {
+            restored.projections.apply('title', frame.title, 0)
+          }
         }
         return
       }

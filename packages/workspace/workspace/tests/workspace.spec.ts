@@ -872,6 +872,43 @@ describe('workspace mutation and status', () => {
   })
 })
 
+describe('Workspace directory retarget', () => {
+  it('retargets the record path and keeps attached sessions across the move', async () => {
+    const oldDir = await makeDir('retarget-old')
+    const newDir = await makeDir('retarget-new')
+    const otherDir = await makeDir('retarget-other')
+    const result = await harness({
+      sessions: [
+        header('moved', oldDir, 100),
+        header('stays', otherDir, 200),
+      ],
+    })
+    const workspace = result.registry.list().find(item => item.path === oldDir)!
+    expect(workspace.sessionIds).toEqual(['moved'])
+
+    await result.registry.retarget(workspace.id, newDir)
+
+    expect(workspace.path).toBe(newDir)
+    expect(workspace.sessionIds).toEqual(['moved'])
+    expect(storedRecord(result.pool, workspace.id)).toMatchObject({ path: newDir })
+    // A workspace elsewhere is untouched by the retarget.
+    const other = result.registry.list().find(item => item.path === otherDir)!
+    expect(other.sessionIds).toEqual(['stays'])
+  })
+
+  it('treats a same-path retarget as a no-op', async () => {
+    const dir = await makeDir('retarget-noop')
+    const result = await harness({ sessions: [header('kept', dir, 100)] })
+    const workspace = result.registry.list()[0]!
+    const written = result.changes.length
+
+    await result.registry.retarget(workspace.id, dir)
+    expect(result.changes).toHaveLength(written)
+    expect(workspace.path).toBe(dir)
+    expect(workspace.sessionIds).toEqual(['kept'])
+  })
+})
+
 describe('registry-global session archive', () => {
   it('archives durably in order, idempotently skips repeats, and leaves accounting untouched', async () => {
     const dir = await makeDir('archive-home')

@@ -22,13 +22,16 @@
  * and a hole has exactly one declaring entry — they carry the same owner
  * contract and the same occupant.
  */
-import type { HostObservable, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
+import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pull the owner SlotMap merges into programs that resolve the
 // runtime shares below.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls the settings shell's SlotMap merge (the
+// 'settings.section' entry and its owner share) for the trash section.
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {
-  SessionId, SessionSearchResultItem, WorkspaceId, WorkspaceView,
+  HistoryEntry, SessionId, SessionSearchResultItem, TrashedSession, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { createWorkspaceViewStore } from '../stores.ts'
 
@@ -133,6 +136,13 @@ export type WorkspaceBrowserInjected = DirectoryPickingInjected & {
    * the Host response/changed frame; failures leave the order unchanged.
    */
   insertSessionBefore: (workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId) => Promise<void>
+  /**
+   * Move a session into the trash: the Host stops its agent, detaches it
+   * from Workspaces, and keeps the durable log for the retention window.
+   * Deletion is conversation-only — the session's files stay exactly as
+   * they are. Destructive intent — callers must confirm first.
+   */
+  trashSession: (sessionId: SessionId) => Promise<void>
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
 }
@@ -166,4 +176,31 @@ export type WorkspacePickerProps =
   & PropsRenderSlots<'conversation.hero.workspace.directoryFlow'>
   & Omit<WorkspacePickerInjected, 'hooks'>
   & DirectoryPickingHooks
+  & PropsLocale<'workspace'>
+
+/**
+ * Deleted-conversations settings-section injected share: the trash-domain
+ * actions the section drives. All reads are request-local (the section
+ * refetches on mount and after every mutation); no live feed exists yet.
+ */
+export type DeletedConversationsSectionInjected = {
+  /** List trashed sessions (newest deletion first; expired entries are purged by the Host first). */
+  listTrashed: (signal?: AbortSignal) => Promise<readonly TrashedSession[]>
+  /** Read one paged window of a trashed session's history for the read-only preview. */
+  trashHistory: (
+    sessionId: SessionId,
+    beforeSeq: number | undefined,
+    maxMessages: number | undefined,
+    signal?: AbortSignal,
+  ) => Promise<{ events: readonly HistoryEntry[]; hasMore: boolean }>
+  /** Restore a trashed session (conversation only; file changes stay reverted). */
+  restore: (sessionId: SessionId) => Promise<void>
+  /** Permanently destroy a trashed session (irreversible). */
+  purge: (sessionId: SessionId) => Promise<void>
+}
+
+/** Full section props: the settings-shell owner share + the injected actions + the locale seat. */
+export type DeletedConversationsSectionProps =
+  PropsRuntime<'settings.section'>
+  & InjectFace<DeletedConversationsSectionInjected>
   & PropsLocale<'workspace'>

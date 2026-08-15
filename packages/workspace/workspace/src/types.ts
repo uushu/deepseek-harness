@@ -26,8 +26,9 @@ export interface Workspace {
 
   /**
    * Canonical directory path: the `fs.realpath` of the path given at create
-   * time (trailing slashes, `..`, and symlinks all resolved). Never rewritten
-   * afterwards, even when the directory disappears (see {@link status}).
+   * time (trailing slashes, `..`, and symlinks all resolved). Rewritten only
+   * by {@link retargetPath} when the directory itself is renamed; a directory
+   * that merely disappears keeps its record (see {@link status}).
    */
   readonly path: string
 
@@ -56,6 +57,17 @@ export interface Workspace {
    * @returns resolution after durability.
    */
   setTitle(title: string): Promise<void>
+
+  /**
+   * Retarget the workspace's canonical directory durably — its folder was
+   * renamed on disk. The registry retargets the canonical-cwd index first so
+   * membership survives the move; callers own the physical directory rename
+   * and the persisted session-header updates that keep the index consistent
+   * across a restart.
+   * @param newPath - the workspace directory's new canonical path.
+   * @returns resolution after durability.
+   */
+  retargetPath(newPath: string): Promise<void>
 
   /**
    * Prepend a session to this workspace's candidate account. An already

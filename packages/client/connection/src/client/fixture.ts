@@ -1344,6 +1344,17 @@ interface FixtureSearchCandidate {
   documentLength: number
 }
 
+/** One recoverable-delete row (the fixture's in-memory trash index). */
+interface FixtureTrashEntry {
+  sessionId: SessionId
+  deletedAt: number
+  blank: boolean
+  cwd?: string
+  parentSessionId?: SessionId
+  origin?: 'subagent'
+  agentPreset?: string
+}
+
 /** Mirrors `packages/session-query/session-query-sqlite/src/index.ts`; update both together. */
 function compareSearchCandidates(a: FixtureSearchCandidate, b: FixtureSearchCandidate): number {
   if (a.matchCount !== b.matchCount) return b.matchCount - a.matchCount
@@ -2176,6 +2187,29 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     replays.set(id, { timer: setTimeout(tick, 80), finish })
   }
 
+  // Recoverable-delete rows: summaries move here on session.trash (the log
+  // stays in `logs` for preview/restore) and leave on restore/purge.
+  const trashed: FixtureTrashEntry[] = []
+
+  /** Move one session into the trash (shared by session.trash and workspace.delete). */
+  const moveToTrash = (sessionId: SessionId): boolean => {
+    const index = sessions.findIndex(summary => summary.sessionId === sessionId)
+    if (index === -1) return false
+    const [summary] = sessions.splice(index, 1) as [SessionSummary]
+    setRunning(sessionId, false)
+    trashed.push({
+      sessionId,
+      deletedAt: Date.now(),
+      blank: summary.blank,
+      ...summary.cwd === undefined ? {} : { cwd: summary.cwd },
+      ...summary.parentSessionId === undefined ? {} : { parentSessionId: summary.parentSessionId },
+      ...summary.origin === undefined ? {} : { origin: summary.origin },
+      ...summary.agentPreset === undefined ? {} : { agentPreset: summary.agentPreset },
+    })
+    emitHost({ type: 'host/session-removed', sessionId })
+    return true
+  }
+
   const api: ApiProxy = {
     sessions: {
       list: request => ok(request, { items: [...sessions].sort((a, b) => b.updatedAt - a.updatedAt) }),
@@ -2506,6 +2540,128 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         }
         return ok(request, { accepted: true as const })
       },
+      delete: (request) => {
+        const { sessionId } = request.payload
+        const index = sessions.findIndex(summary => summary.sessionId === sessionId)
+        if (index === -1) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `fixture has no session ${sessionId}`,
+            details: { sessionId },
+          })
+        }
+        sessions.splice(index, 1)
+        logs.delete(sessionId)
+        setRunning(sessionId, false)
+        emitHost({ type: 'host/session-removed', sessionId })
+        return ok(request, { deleted: true as const })
+      },
+      trash: (request) => {
+        const { sessionId } = request.payload
+        if (!sessions.some(summary => summary.sessionId === sessionId)) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `fixture has no session ${sessionId}`,
+            details: { sessionId },
+          })
+        }
+        if (trashed.some(entry => entry.sessionId === sessionId)) {
+          return err(request, {
+            code: 'session-trashed',
+            message: `fixture session ${sessionId} is already in the trash`,
+            details: { sessionId },
+          })
+        }
+        moveToTrash(sessionId)
+        return ok(request, { trashed: true as const })
+      },
+      restore: (request) => {
+        const { sessionId } = request.payload
+        const index = trashed.findIndex(entry => entry.sessionId === sessionId)
+        if (index === -1) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `fixture has no trashed session ${sessionId}`,
+            details: { sessionId },
+          })
+        }
+        const [entry] = trashed.splice(index, 1) as [FixtureTrashEntry]
+        // The durable title rides the restore frame (mirror of the real host):
+        // the client dropped its projection store on removal, so a frame
+        // without the title would bring the row back nameless.
+        const log = logs.get(entry.sessionId) ?? []
+        const titleEvent = log.findLast(item => (item as { type: string }).type === 'session/title')
+        const title = titleEvent === undefined
+          ? undefined
+          : (titleEvent as unknown as { data: { title: string } }).data.title
+        sessions.push({
+          sessionId: entry.sessionId,
+          updatedAt: Date.now(),
+          running: false,
+          blank: entry.blank,
+          ...(title === undefined || title === '' ? {} : { title }),
+          ...entry.cwd === undefined ? {} : { cwd: entry.cwd },
+          ...entry.parentSessionId === undefined ? {} : { parentId: entry.parentSessionId },
+          ...entry.origin === undefined ? {} : { origin: entry.origin },
+          ...entry.agentPreset === undefined ? {} : { agentPreset: entry.agentPreset },
+        })
+        emitHost({
+          type: 'host/session-restored',
+          sessionId: entry.sessionId,
+          blank: entry.blank,
+          ...(title === undefined || title === '' ? {} : { title }),
+          ...entry.parentSessionId === undefined ? {} : { parentSessionId: entry.parentSessionId },
+          ...entry.origin === undefined ? {} : { origin: entry.origin },
+          ...entry.cwd === undefined ? {} : { cwd: entry.cwd },
+          ...entry.agentPreset === undefined ? {} : { agentPreset: entry.agentPreset },
+        })
+        return ok(request, { restored: true as const })
+      },
+      purge: (request) => {
+        const { sessionId } = request.payload
+        const index = trashed.findIndex(entry => entry.sessionId === sessionId)
+        if (index === -1) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `fixture has no trashed session ${sessionId}`,
+            details: { sessionId },
+          })
+        }
+        trashed.splice(index, 1)
+        logs.delete(sessionId)
+        emitHost({ type: 'host/session-removed', sessionId })
+        return ok(request, { purged: true as const })
+      },
+      listTrashed: (request) => {
+        const items = [...trashed].sort((a, b) => b.deletedAt - a.deletedAt).map((entry) => {
+          const log = logs.get(entry.sessionId) ?? []
+          const titleEvent = log.findLast(item => (item as { type: string }).type === 'session/title')
+          return {
+            sessionId: entry.sessionId,
+            deletedAt: entry.deletedAt,
+            ...titleEvent === undefined
+              ? {}
+              : { title: (titleEvent as unknown as { data: { title: string } }).data.title },
+            ...entry.cwd === undefined ? {} : { cwd: entry.cwd },
+            ...entry.parentSessionId === undefined ? {} : { parentSessionId: entry.parentSessionId },
+            ...entry.origin === undefined ? {} : { origin: entry.origin },
+            ...entry.agentPreset === undefined ? {} : { agentPreset: entry.agentPreset },
+          }
+        })
+        return ok(request, { items })
+      },
+      trashHistory: (request) => {
+        const { sessionId, beforeSeq, maxMessages } = request.payload
+        if (!trashed.some(entry => entry.sessionId === sessionId)) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `fixture has no trashed session ${sessionId}`,
+            details: { sessionId },
+          })
+        }
+        const log = logs.get(sessionId) ?? []
+        return Promise.resolve(ok(request, pageOf(log, beforeSeq, maxMessages ?? 50)))
+      },
     },
     subagents: {
       list: request => ok(request, { entries: [], parentAvailable: true }),
@@ -2620,6 +2776,8 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             details: { workspaceId },
           })
         }
+        // Sessions only lose their workspace account (host parity); the
+        // session rows and logs are untouched.
         workspaces.splice(index, 1)
         emitHost({ type: 'host/workspace-removed', workspaceId })
         return ok(request, { deleted: true as const })
@@ -3089,6 +3247,12 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'session.attachment': return this.api.sessions.attachment(request)
       case 'session.updateQueue': return this.api.sessions.updateQueue(request)
       case 'session.cancel': return this.api.sessions.cancel(request)
+      case 'session.delete': return this.api.sessions.delete(request)
+      case 'session.trash': return this.api.sessions.trash(request)
+      case 'session.restore': return this.api.sessions.restore(request)
+      case 'session.purge': return this.api.sessions.purge(request)
+      case 'session.listTrashed': return this.api.sessions.listTrashed(request)
+      case 'session.trashHistory': return this.api.sessions.trashHistory(request)
       case 'subagent.list': return this.api.subagents.list(request)
       case 'subagent.history': return this.api.subagents.history(request)
       case 'subagent.prompt': return this.api.subagents.prompt(request, signal)

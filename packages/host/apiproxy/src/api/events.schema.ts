@@ -77,6 +77,20 @@ export const hostFrameSchema = z.discriminatedUnion('type', [
     cwd: z.string().optional(),
     agentPreset: z.string().optional(),
   }),
+  // Mirror of session-added for a trashed session brought back by
+  // session.restore: same summary fields, so the client can re-add the row
+  // without refreshing the list; the durable title rides along so the row
+  // comes back named (the client's projection store was dropped on removal).
+  z.object({
+    type: z.literal('host/session-restored'),
+    sessionId: sessionIdSchema,
+    blank: z.boolean(),
+    title: z.string().optional(),
+    parentSessionId: sessionIdSchema.optional(),
+    origin: z.literal('subagent').optional(),
+    cwd: z.string().optional(),
+    agentPreset: z.string().optional(),
+  }),
   z.object({ type: z.literal('host/session-removed'), sessionId: sessionIdSchema }),
   z.object({ type: z.literal('host/session-status'), sessionId: sessionIdSchema, running: z.boolean() }),
   z.object({ type: z.literal('host/agent-error'), sessionId: sessionIdSchema, message: z.string() }),

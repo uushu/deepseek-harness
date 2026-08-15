@@ -12,7 +12,13 @@ import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { WorkspaceBrowserInjected, WorkspacePickerInjected } from './contract/slots.ts'
+// Type-only: pulls the settings shell's SlotMap merge (the
+// 'settings.section' entry) for the deleted-conversations section.
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {
+  DeletedConversationsSectionInjected, WorkspaceBrowserInjected, WorkspacePickerInjected,
+} from './contract/slots.ts'
+import { DeletedConversationsSection } from './DeletedConversationsSection.tsx'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './WorkspaceBrowser.tsx'
 import { WorkspacePicker } from './WorkspacePicker.tsx'
@@ -20,6 +26,7 @@ import { en, zh, type WorkspaceKey } from './locales.ts'
 
 export type {
   DirectoryFlowOwnerProps, DirectoryFlowSlotName, DirectoryPickingHooks, DirectoryPickingInjected,
+  DeletedConversationsSectionInjected, DeletedConversationsSectionProps,
   WorkspaceBrowserInjected, WorkspaceBrowserProps, WorkspacePickerInjected, WorkspacePickerProps,
 } from './contract/slots.ts'
 export type { WorkspaceKey } from './locales.ts'
@@ -51,6 +58,7 @@ export const inject = ['slots', 'sessions', 'workspaces', 'locale']
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
+  const t = ctx.locale.bind(NS)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
 
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
@@ -98,8 +106,25 @@ export function apply(ctx: ClientContext): void {
     insertSessionBefore: async (workspaceId, sessionId, beforeSessionId) => {
       await ctx.workspaces.insertSessionBefore(workspaceId, sessionId, beforeSessionId)
     },
+    trashSession: async (sessionId) => {
+      await ctx.sessions.trashSession(sessionId)
+    },
     createWorkspace: input => ctx.workspaces.create(input),
     hooks: { directoryFlow: browserFlowSource },
+  })
+  const trashSectionInjected = (): DeletedConversationsSectionInjected => ({
+    listTrashed: async (signal) => {
+      const result = await ctx.sessions.listTrashed(signal)
+      if (!result.ok) throw new Error(result.error.message)
+      return result.value.items
+    },
+    trashHistory: async (sessionId, beforeSeq, maxMessages, signal) => {
+      const result = await ctx.sessions.trashHistory(sessionId, beforeSeq, maxMessages, signal)
+      if (!result.ok) throw new Error(result.error.message)
+      return result.value
+    },
+    restore: async (sessionId) => { await ctx.sessions.restoreSession(sessionId) },
+    purge: async (sessionId) => { await ctx.sessions.purgeSession(sessionId) },
   })
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => ctx.workspaces.create(input),
@@ -125,5 +150,20 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
     },
     WorkspacePicker,
+  ))
+  // The deleted-conversations settings page: this package owns the trash
+  // domain (the browser's delete action feeds it), so it also owns the
+  // settings row that manages the trash. The section needs no child slots;
+  // it refetches on mount and after every mutation.
+  ctx.slots.inject('settings.section', () => ctx.slots.register(
+    {
+      name: 'settings.section',
+      id: 'deleted-conversations',
+      order: 25,
+      label: () => t('trash.nav'),
+      locale: NS,
+      inject: trashSectionInjected,
+    },
+    DeletedConversationsSection,
   ))
 }

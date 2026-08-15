@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -6,7 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentFactory } from '@deepseek-ai/dsh-agent'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
-import type { Session } from '@deepseek-ai/dsh-session'
+import type { Session, SessionHeader } from '@deepseek-ai/dsh-session'
 import Storage from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
@@ -64,6 +64,7 @@ async function harness(
   extras: {
     openPath?: (path: string, signal: AbortSignal) => Promise<void>
     canOpenPath?: () => boolean
+    sessionPersistence?: { list: () => Promise<SessionHeader[]>; retargetCwd?: (id: SessionId, cwd: string) => Promise<void> }
   } = {},
 ) {
   const ctx = new Context()
@@ -75,7 +76,8 @@ async function harness(
   const storageDomain = new DomainFacility(ctx, { backend: 'memory', routes: {} })
   ctx.storage.mount('domain', storageDomain)
   ctx.provide('storageDomain', storageDomain)
-  ctx.provide('sessionPersistence', { list: () => Promise.resolve([]) } as never)
+  ctx.provide('sessionPersistence',
+    extras.sessionPersistence ?? { list: () => Promise.resolve([]) } as never)
   await ctx.plugin(WorkspaceRegistry)
 
   const factory: AgentFactory = {
@@ -288,7 +290,12 @@ describe('workspace.create', () => {
       workspaceId: first.workspace.workspaceId,
       title: 'renamed-existing',
     })))
-    const reopened = expectOk(await api.workspace.create(request({ path: existing })))
+    // The folder follows the new title, so the old path no longer exists;
+    // adopting the moved directory reuses the same workspace.
+    expect(existsSync(existing)).toBe(false)
+    expect(existsSync(join(root, 'renamed-existing'))).toBe(true)
+    const reopened = expectOk(await api.workspace.create(request({ path: join(root, 'renamed-existing') })))
+    expect(reopened).toMatchObject({ created: false, workspace: { workspaceId: first.workspace.workspaceId } })
     expect(reopened.workspace.title).toBe('renamed-existing')
 
     const missing = join(root, 'missing')
@@ -495,7 +502,7 @@ describe('Host Workspace increments', () => {
     expect(await next).toMatchObject({ done: true })
   })
 
-  it('deletes the registration, keeps its session and folder, and streams one removal', async () => {
+  it('removes only the registration: the folder stays on disk, the session is kept, and re-adding restores', async () => {
     const { api, ctx, root } = await harness()
     const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'delete-me') }))).workspace
     const sessionId = SessionId('session-kept-after-workspace-delete')
@@ -510,8 +517,11 @@ describe('Host Workspace increments', () => {
       payload: { type: 'host/workspace-removed', workspaceId: workspace.workspaceId },
     })
     expect(expectOk(await api.workspace.list(request({}))).items).toEqual([])
+    // The session keeps its log and its live agent (only the account is gone).
     expect(expectOk(await api.sessions.list(request({}))).items.map(item => item.sessionId)).toContain(sessionId)
     expect(ctx.agents.get(sessionId)).toBeDefined()
+    // The folder stays on disk: re-adding the same directory restores the
+    // workspace (the delete is a list removal, not a file deletion).
     expect(existsSync(workspace.path)).toBe(true)
 
     const missing = await api.workspace.delete(request({ workspaceId: workspace.workspaceId }))
@@ -520,12 +530,26 @@ describe('Host Workspace increments', () => {
       error: { code: 'workspace-not-found', details: { workspaceId: workspace.workspaceId } },
     })
 
-    const reregistered = expectOk(await api.workspace.create(request({ path: workspace.path }))).workspace
-    expect(reregistered.workspaceId).not.toBe(workspace.workspaceId)
-    expect(reregistered.path).toBe(workspace.path)
-    expect(reregistered.sessionIds).toEqual([])
+    const reregistered = await api.workspace.create(request({ path: workspace.path }))
+    expect(reregistered.result).toMatchObject({
+      ok: true,
+      value: { created: true, workspace: expect.objectContaining({ path: workspace.path }) },
+    })
     expect(expectOk(await api.sessions.list(request({}))).items.map(item => item.sessionId)).toContain(sessionId)
     abort.abort()
+  })
+
+  it('removes the registration even when the folder is already gone', async () => {
+    const { api, root } = await harness()
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'stubborn') }))).workspace
+    // A folder that vanished externally must not block the list removal:
+    // delete never touches the folder.
+    const { rm } = await import('node:fs/promises')
+    await rm(workspace.path, { recursive: true, force: false })
+    const deleted = await api.workspace.delete(request({ workspaceId: workspace.workspaceId }))
+    expect(deleted.result).toMatchObject({ ok: true, value: { deleted: true } })
+    expect(expectOk(await api.workspace.list(request({}))).items.map(item => item.workspaceId))
+      .not.toContain(workspace.workspaceId)
   })
 
   it('archives a session into the global set, keeps its accounting, and streams the set once', async () => {
@@ -566,5 +590,114 @@ describe('Host Workspace increments', () => {
       error: { code: 'session-not-found', details: { sessionId: 'session-ghost' } },
     })
     abort.abort()
+  })
+})
+
+describe('workspace.rename folder sync', () => {
+  it('renames the folder and keeps a live session attached', async () => {
+    const { api, root } = await harness()
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'alpha') }))).workspace
+    const sessionId = SessionId('session-in-folder')
+    expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId })))
+    expect(expectOk(await api.workspace.list(request({}))).items[0]?.sessionIds).toEqual([sessionId])
+
+    const renamed = expectOk(await api.workspace.rename(request({
+      workspaceId: workspace.workspaceId,
+      title: 'beta',
+    })))
+    expect(renamed.workspace).toMatchObject({ title: 'beta', path: join(root, 'beta') })
+    expect(renamed.workspace.sessionIds).toEqual([sessionId])
+    // The directory itself moved; the account followed.
+    expect(existsSync(join(root, 'alpha'))).toBe(false)
+    expect(existsSync(join(root, 'beta'))).toBe(true)
+    expect(expectOk(await api.workspace.list(request({}))).items[0]?.sessionIds).toEqual([sessionId])
+  })
+
+  it('retargets persisted session cwds under the renamed folder', async () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-apiproxy-ws-rename-')))
+    const dir = stageDir(root, 'alpha')
+    const sessionId = SessionId('persisted-in-folder')
+    let headers: SessionHeader[] = [{ version: 0, id: sessionId, createdAt: 0, cwd: dir }]
+    const retargeted: Array<[SessionId, string]> = []
+    const persistence = {
+      list: async () => headers,
+      locate: () => undefined,
+      retargetCwd: async (id: SessionId, cwd: string) => {
+        retargeted.push([id, cwd])
+        headers = headers.map(header => header.id === id ? { ...header, cwd } : header)
+      },
+    }
+    // Bootstrap adopted the persisted cwd as a workspace account.
+    const { api } = await harness(
+      root,
+      { kind: 'native', pick: async () => null },
+      { sessionPersistence: persistence },
+    )
+    const listed = expectOk(await api.workspace.list(request({})))
+    expect(listed.items).toHaveLength(1)
+    expect(listed.items[0]?.sessionIds).toEqual([sessionId])
+
+    const renamed = expectOk(await api.workspace.rename(request({
+      workspaceId: listed.items[0]!.workspaceId,
+      title: 'beta',
+    })))
+    expect(renamed.workspace.path).toBe(join(root, 'beta'))
+    expect(retargeted).toEqual([[sessionId, join(root, 'beta')]])
+    expect(headers[0]?.cwd).toBe(join(root, 'beta'))
+    expect(existsSync(dir)).toBe(false)
+    expect(existsSync(join(root, 'beta'))).toBe(true)
+  })
+
+  it('rejects a title that cannot name a folder segment without moving anything', async () => {
+    const { api, root } = await harness()
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'plain') }))).workspace
+    for (const title of ['a/b', 'a\\b', 'a:b', 'a*b', '..', '.', 'trail.']) {
+      const response = await api.workspace.rename(request({ workspaceId: workspace.workspaceId, title }))
+      expect(response.result).toMatchObject({ ok: false, error: { code: 'workspace-name-invalid' } })
+    }
+    expect(existsSync(join(root, 'plain'))).toBe(true)
+    expect(expectOk(await api.workspace.list(request({}))).items[0]?.title).toBe('plain')
+  })
+
+  it('rejects a rename whose target directory already exists', async () => {
+    const { api, root } = await harness()
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'alpha') }))).workspace
+    stageDir(root, 'beta')
+    const response = await api.workspace.rename(request({ workspaceId: workspace.workspaceId, title: 'beta' }))
+    expect(response.result).toMatchObject({ ok: false, error: { code: 'workspace-name-conflict' } })
+    expect(existsSync(join(root, 'alpha'))).toBe(true)
+  })
+})
+
+describe('session.delete', () => {
+  it('fails with session-not-found for an unknown session', async () => {
+    const { api } = await harness()
+    const response = await api.sessions.delete(request({ sessionId: SessionId('session-ghost') }))
+    expect(response.result).toMatchObject({
+      ok: false,
+      error: { code: 'session-not-found', details: { sessionId: 'session-ghost' } },
+    })
+  })
+
+  it('detaches from the Workspace, keeps files untouched, and removes the persisted log', async () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-apiproxy-session-delete-')))
+    const { api } = await harness(root, { kind: 'native', pick: async () => null })
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'ws') }))).workspace
+    const sessionId = SessionId('session-with-files')
+    const createdFile = join(workspace.path, 'created.txt')
+    const editedFile = join(workspace.path, 'edited.txt')
+    writeFileSync(editedFile, 'original body')
+    writeFileSync(createdFile, 'agent wrote me')
+    const created = expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId })))
+    expect(created.sessionId).toBe(sessionId)
+
+    const deleted = await api.sessions.delete(request({ sessionId }))
+    expect(deleted.result).toMatchObject({ ok: true, value: { deleted: true } })
+    // Deletion is conversation-only: files stay exactly as the session left them.
+    expect(existsSync(createdFile)).toBe(true)
+    expect(readFileSync(createdFile, 'utf8')).toBe('agent wrote me')
+    expect(readFileSync(editedFile, 'utf8')).toBe('original body')
+    // The session is detached from the Workspace account.
+    expect(expectOk(await api.workspace.list(request({}))).items[0]?.sessionIds).toEqual([])
   })
 })

@@ -21,14 +21,20 @@ import {
   sessionCancelValueSchema,
   sessionAttachmentValueSchema,
   sessionCreateValueSchema,
+  sessionDeleteValueSchema,
   sessionForkValueSchema,
   sessionHistoryValueSchema,
+  sessionListTrashedValueSchema,
   sessionListValueSchema,
   sessionModelsValueSchema,
   sessionPromptValueSchema,
+  sessionPurgeValueSchema,
   sessionRenameValueSchema,
+  sessionRestoreValueSchema,
   sessionSearchValueSchema,
   sessionSelectModelValueSchema,
+  sessionTrashHistoryValueSchema,
+  sessionTrashValueSchema,
   sessionUpdateQueueValueSchema,
 } from '../api/sessions.schema.ts'
 import {
@@ -98,6 +104,12 @@ export interface IApiClient {
     attachment(payload: RequestPayload<'session.attachment'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.attachment'>>>
     updateQueue(payload: RequestPayload<'session.updateQueue'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.updateQueue'>>>
     cancel(payload: RequestPayload<'session.cancel'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.cancel'>>>
+    delete(payload: RequestPayload<'session.delete'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.delete'>>>
+    trash(payload: RequestPayload<'session.trash'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.trash'>>>
+    restore(payload: RequestPayload<'session.restore'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.restore'>>>
+    purge(payload: RequestPayload<'session.purge'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.purge'>>>
+    listTrashed(payload: RequestPayload<'session.listTrashed'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.listTrashed'>>>
+    trashHistory(payload: RequestPayload<'session.trashHistory'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'session.trashHistory'>>>
   }
   subagents: {
     list(payload: RequestPayload<'subagent.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'subagent.list'>>>
@@ -182,6 +194,12 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'session.attachment': sessionAttachmentValueSchema,
   'session.updateQueue': sessionUpdateQueueValueSchema,
   'session.cancel': sessionCancelValueSchema,
+  'session.delete': sessionDeleteValueSchema,
+  'session.trash': sessionTrashValueSchema,
+  'session.restore': sessionRestoreValueSchema,
+  'session.purge': sessionPurgeValueSchema,
+  'session.listTrashed': sessionListTrashedValueSchema,
+  'session.trashHistory': sessionTrashHistoryValueSchema,
   'subagent.list': subagentListValueSchema,
   'subagent.history': subagentHistoryValueSchema,
   'subagent.prompt': subagentPromptValueSchema,
@@ -422,6 +440,12 @@ export abstract class AbstractApiClient implements IApiClient {
     attachment: (payload, signal) => this.callUnary('session.attachment', payload, signal),
     updateQueue: (payload, signal) => this.callUnary('session.updateQueue', payload, signal),
     cancel: (payload, signal) => this.callUnary('session.cancel', payload, signal),
+    delete: (payload, signal) => this.callUnary('session.delete', payload, signal),
+    trash: (payload, signal) => this.callUnary('session.trash', payload, signal),
+    restore: (payload, signal) => this.callUnary('session.restore', payload, signal),
+    purge: (payload, signal) => this.callUnary('session.purge', payload, signal),
+    listTrashed: (payload, signal) => this.callUnary('session.listTrashed', payload, signal),
+    trashHistory: (payload, signal) => this.callUnary('session.trashHistory', payload, signal),
   }
 
   readonly subagents: IApiClient['subagents'] = {

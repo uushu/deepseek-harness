@@ -70,6 +70,13 @@ export class FakeApiClient implements IApiClient {
     () => Promise.resolve(ok({ attachment: { attachmentId: 'a' as never, mediaType: 'image/png', bytes: 1, width: 1, height: 1 }, data: 'AA==' }))
   onUpdateQueue: (payload: unknown) => Promise<RpcResponse<{ accepted: true }>> = () => Promise.resolve(ok({ accepted: true as const }))
   onCancel: (payload: unknown) => Promise<RpcResponse<{ accepted: true }>> = () => Promise.resolve(ok({ accepted: true as const }))
+  onDelete: (payload: unknown) => Promise<RpcResponse<{ deleted: true }>> = () => Promise.resolve(ok({ deleted: true as const }))
+  onTrash: (payload: unknown) => Promise<RpcResponse<{ trashed: true }>> = () => Promise.resolve(ok({ trashed: true as const }))
+  onRestore: (payload: unknown) => Promise<RpcResponse<{ restored: true }>> = () => Promise.resolve(ok({ restored: true as const }))
+  onPurge: (payload: unknown) => Promise<RpcResponse<{ purged: true }>> = () => Promise.resolve(ok({ purged: true as const }))
+  onListTrashed: (payload: unknown) => Promise<RpcResponse<{ items: never[] }>> = () => Promise.resolve(ok({ items: [] }))
+  onTrashHistory: (payload: unknown) => Promise<RpcResponse<{ events: never[]; hasMore: boolean }>> =
+    () => Promise.resolve(ok({ events: [], hasMore: false }))
   onDescribe: (payload: unknown) => Promise<RpcResponse<{
     version: string
     cwd: string
@@ -121,6 +128,12 @@ export class FakeApiClient implements IApiClient {
     attachment: (payload: unknown) => this.record('session.attachment', payload, this.onAttachment(payload)),
     updateQueue: (payload: unknown) => this.record('session.updateQueue', payload, this.onUpdateQueue(payload)),
     cancel: (payload: unknown) => this.record('session.cancel', payload, this.onCancel(payload)),
+    delete: (payload: unknown) => this.record('session.delete', payload, this.onDelete(payload)),
+    trash: (payload: unknown) => this.record('session.trash', payload, this.onTrash(payload)),
+    restore: (payload: unknown) => this.record('session.restore', payload, this.onRestore(payload)),
+    purge: (payload: unknown) => this.record('session.purge', payload, this.onPurge(payload)),
+    listTrashed: (payload: unknown) => this.record('session.listTrashed', payload, this.onListTrashed(payload)),
+    trashHistory: (payload: unknown) => this.record('session.trashHistory', payload, this.onTrashHistory(payload)),
   }
 
   readonly subagents: IApiClient['subagents'] = {

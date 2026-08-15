@@ -106,6 +106,10 @@ export class WorkspaceEntity implements Workspace {
     await this.mutate(record => ({ ...record, title }))
   }
 
+  async retargetPath(newPath: string): Promise<void> {
+    await this.mutate(record => ({ ...record, path: newPath }))
+  }
+
   async attachSession(sessionId: SessionId): Promise<void> {
     // Validation is skipped when the settled snapshot already accounts the
     // id: the cwd fact was checked when it first attached and both inputs

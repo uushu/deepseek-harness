@@ -185,7 +185,7 @@ export class TestSessions implements ISessions {
   /** Calls observed on the service-level face, newest last. */
   readonly calls: {
     method: 'open' | 'openSubagent' | 'setSubagentCatalogOpen' | 'refreshSubagents'
-      | 'clear' | 'search' | 'fork'
+      | 'clear' | 'search' | 'fork' | 'deleteSession' | 'trashSession' | 'restoreSession' | 'purgeSession'
     args: unknown[]
   }[] = []
 
@@ -487,6 +487,47 @@ export class TestSessions implements ISessions {
   fork(opts: { sessionId: SessionId; atSeq?: number; increaseTitle?: boolean }): Promise<SessionId> {
     this.calls.push({ method: 'fork', args: [opts] })
     return Promise.resolve(opts.sessionId)
+  }
+
+  /**
+   * Permanently delete a session (recorded; delegates to the bench's own
+   * `remove` so the row and its per-session state die together).
+   * @param sessionId - session to delete.
+   */
+  async deleteSession(sessionId: SessionId): Promise<void> {
+    this.calls.push({ method: 'deleteSession', args: [sessionId] })
+    await this.remove(sessionId)
+  }
+
+  /** Trash a session (recorded; the bench treats it like a removal). */
+  async trashSession(sessionId: SessionId): Promise<void> {
+    this.calls.push({ method: 'trashSession', args: [sessionId] })
+    await this.remove(sessionId)
+  }
+
+  /** Restore a trashed session (recorded no-op: the bench's trash has no rows). */
+  async restoreSession(sessionId: SessionId): Promise<void> {
+    this.calls.push({ method: 'restoreSession', args: [sessionId] })
+  }
+
+  /** Permanently purge a trashed session (recorded no-op). */
+  async purgeSession(sessionId: SessionId): Promise<void> {
+    this.calls.push({ method: 'purgeSession', args: [sessionId] })
+  }
+
+  /** List trashed sessions (the bench's trash is always empty). */
+  listTrashed(_signal?: AbortSignal): ReturnType<ISessions['listTrashed']> {
+    return Promise.resolve({ ok: true, value: { items: [] } })
+  }
+
+  /** Preview one trashed session (the bench's trash has no rows). */
+  trashHistory(
+    _sessionId: SessionId,
+    _beforeSeq: number | undefined,
+    _maxMessages: number | undefined,
+    _signal?: AbortSignal,
+  ): ReturnType<ISessions['trashHistory']> {
+    return Promise.resolve({ ok: true, value: { events: [], hasMore: false } })
   }
 
   /**

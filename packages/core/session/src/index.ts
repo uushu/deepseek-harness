@@ -63,6 +63,33 @@ declare module '@deepseek-ai/cordis' {
      */
     'session/disposed'(this: Scoped<Session>, session: Session): void
     /**
+     * Host-level notice that a session was explicitly deleted via
+     * `session.delete`: the durable log is gone, file changes were rolled
+     * back, and every surface must drop the row. Unlike `session/disposed`
+     * this fires for COLD sessions too (a delete never disposes a live
+     * Session object it does not hold). Emitted with the bare session id.
+     * @mode emit
+     */
+    'session/deleted'(sessionId: SessionId): void
+    /**
+     * Host-level notice that a trashed session was restored via
+     * `session.restore`: the durable log is back on every surface and the
+     * row must reappear. The payload is the restore impl's precomputed list
+     * projection (same fields a session-added frame carries). Emitted with
+     * the bare payload; a restore never disposes or creates a Session object.
+     * @mode emit
+     */
+    'session/restored'(restored: {
+      sessionId: SessionId
+      blank: boolean
+      parentSessionId?: SessionId
+      origin?: 'subagent'
+      cwd?: string
+      agentPreset?: string
+      /** The last durable title, when the log carried one (clients fall back to cwd/id). */
+      title?: string
+    }): void
+    /**
      * Post-commit, fire-and-forget append feed. The listener snapshot resolves
      * before the log push, but callbacks run after it; observer failures are
      * logged and contained without making the committed append fail.

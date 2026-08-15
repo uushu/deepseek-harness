@@ -174,6 +174,23 @@ export class SqliteSessionPersistence extends SessionPersistence implements Pers
     return undefined
   }
 
+  /**
+   * Retarget a materialized session's cwd — the workspace folder it lives in
+   * was renamed. Updates the `sessions` row and bumps the revision so change
+   * detection observes the new header.
+   * @param id - the persisted session to retarget.
+   * @param cwd - the new absolute working directory.
+   */
+  override async retargetCwd(id: SessionId, cwd: string): Promise<void> {
+    await this.ready
+    const result = this.db.prepare(
+      'UPDATE sessions SET cwd = ?, revision = revision + 1 WHERE id = ?',
+    ).run(cwd, id)
+    if (result.changes !== 1) {
+      throw new Error(`cannot retarget session "${id}": no stored session row`)
+    }
+  }
+
   create(meta: SessionHeader): Promise<void> {
     return this.coordinator.create(meta)
   }

@@ -15,8 +15,10 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
+import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import type { ApiProxy } from './api/index.ts'
-import { createApiProxy, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './api-proxy.ts'
+import { createApiProxy, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES, sweepSessionTrash } from './api-proxy.ts'
+import { SessionTrash } from './session-trash.ts'
 import {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,
   type SessionLogCompressionLevel,
@@ -59,6 +61,13 @@ export interface Config {
    * @default 1024
    */
   coldBlankProbeMaxBytes?: number
+  /**
+   * Root directory for the session trash index (`session.trash`/`restore`/
+   * `purge`/`listTrashed`). Defaults to `<harness home>/session-trash`.
+   * Trashed sessions keep their durable log in persistence (for preview and
+   * restore) and are swept automatically after 30 days.
+   */
+  sessionTrashRoot?: string
 }
 
 /**
@@ -77,6 +86,7 @@ export class ApiProxyService extends Service implements ApiProxy {
     sessionExportCompressionLevel: z.number().step(1).min(0).max(9)
       .default(DEFAULT_SESSION_LOG_COMPRESSION_LEVEL) as z<SessionLogCompressionLevel>,
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
+    sessionTrashRoot: z.string().default(dshHomePath('session-trash')),
   })
 
   readonly sessions: ApiProxy['sessions']
@@ -95,6 +105,9 @@ export class ApiProxyService extends Service implements ApiProxy {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'apiProxy')
+    // schemastery's .default() guarantees the field is set after validation.
+    const trash = new SessionTrash(config.sessionTrashRoot as string)
+    ctx.provide('sessionTrash', trash)
     const api = createApiProxy(ctx, {
       defaultModelSelection: () => ctx.agentDefaultModel.currentSelection(),
       saveDefaultModelSelection: selection => ctx.agentDefaultModel.saveSelection(selection),
@@ -106,7 +119,19 @@ export class ApiProxyService extends Service implements ApiProxy {
       ...(config.coldBlankProbeMaxBytes === undefined
         ? {}
         : { coldBlankProbeMaxBytes: config.coldBlankProbeMaxBytes }),
+      sessionTrash: trash,
     })
+    // Startup sweep: expired trash entries are purged on boot (fire-and-
+    // forget; persistence may still be mounting, in which case the next
+    // trash-domain RPC sweeps again). The timer is cleared on disposal so a
+    // destroyed service never triggers a late sweep.
+    const timer = setTimeout(() => {
+      void sweepSessionTrash(ctx, trash, Date.now()).catch((error: unknown) => {
+        ctx.logger.warn(`session trash: startup sweep failed: ${String(error)}`)
+      })
+    }, 0)
+    timer.unref?.()
+    ctx.effect(() => () => clearTimeout(timer), 'apiProxy.startupSweepTimer')
     this.sessions = api.sessions
     this.subagents = api.subagents
     this.workspace = api.workspace

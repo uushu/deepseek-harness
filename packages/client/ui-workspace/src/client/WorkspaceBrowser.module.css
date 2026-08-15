@@ -485,10 +485,21 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
+/* The delete-conversation dialog is fully error-colored: title, description,
+   confirm button, pending status, and error text all read red (the cancel
+   button stays neutral — it is not the destructive action). */
+.deleteTitle {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.deleteDescription {
+  color: var(--dsw-alias-state-error-primary);
+}
+
 .deleteStatus {
   font-size: 12px;
   line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-state-error-primary);
 }
 
 @media (prefers-reduced-motion: reduce) {

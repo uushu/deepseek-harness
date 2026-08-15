@@ -4,8 +4,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { mkdir, rename, rm, stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
@@ -27,6 +27,7 @@ import {
   workspaceDomainState, workspaceRecord, WorkspaceId as brandWorkspaceId,
   WorkspaceMoveInvalidError, WorkspaceOrderInvalidError, WorkspaceUnknownSessionError,
 } from '@deepseek-ai/dsh-workspace'
+import { SessionTrash } from './session-trash.ts'
 // Type-only: brings the `ctx.tools` Context merge into this program (viewFor reads presenters).
 import {
   InvalidPresetIdError, PresetExistsError, PresetMountError,
@@ -40,7 +41,7 @@ import type {
   ModelCatalogFailure, ModelProviderGroup,
   ModelReasoning, MuxFrame, PromptContentPart, QuestionResponsePayload, SessionListMetadata, SessionProjectionsBlock, SessionSearchItem,
   QueuedInboxItem, SessionSummary, SettingsNamespaceView, SubagentAddress, JobView, ToolEventView,
-  WorkspaceId, WorkspaceView,
+  TrashedSession, WorkspaceId, WorkspaceView,
 } from './api/index.ts'
 import {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,
@@ -82,7 +83,7 @@ import { SettingsConflictError, settingsNamespace } from '@deepseek-ai/dsh-setti
 import type { SettingsDescriptor, SettingsNamespace, SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 // Value edge: the rename impl narrows the title service's validation failure; the import also resolves `ctx.get('sessionTitle')`.
-import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
+import { SessionTitleInvalidError, foldSessionTitle } from '@deepseek-ai/dsh-session-title'
 import type { CallId } from '@deepseek-ai/dsh-llm/brand'
 import type { ScopeKey } from '@deepseek-ai/dsh-scope'
 import type { ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
@@ -112,6 +113,183 @@ import { canOpenNativePath, openNativePath, openNativeTextFile } from './native-
 
 /** Page size when history is called without maxMessages. */
 const DEFAULT_MAX_MESSAGES = 50
+
+/**
+ * Permanently remove every trashed session whose retention window expired.
+ * Runs before trash listings and at gateway start, so expired logs are
+ * purged even when no client ever opens the trash page. A session whose log
+ * is already gone (or whose persistence is absent) counts as purged — there
+ * is nothing left to destroy.
+ * @param ctx - the host context (persistence read via `ctx.get`).
+ * @param trash - the trash index to sweep.
+ * @param now - the retention anchor (epoch milliseconds).
+ * @returns how many entries were purged.
+ */
+export async function sweepSessionTrash(
+  ctx: Context,
+  trash: SessionTrash,
+  now: number,
+): Promise<number> {
+  const persistence = ctx.get('sessionPersistence')
+  const purged = await trash.sweep(now, async (entry) => {
+    if (persistence === undefined) return
+    const stored = await storedHeaderFor(ctx, entry.sessionId)
+    if (stored === undefined) return
+    const location = persistence.locate(stored)
+    if (location !== undefined) {
+      await rm(location.path, { force: true })
+    }
+  })
+  if (purged > 0) {
+    ctx.logger.info(`session trash: swept ${purged} expired entr${purged === 1 ? 'y' : 'ies'}`)
+  }
+  return purged
+}
+
+/**
+ * The durable header for one session, when persistence is mounted and the
+ * session has an artifact. The repeated `persistence.list().find(...)`
+ * lookup behind trash/restore/purge/sweep lives here instead of inline.
+ * @param ctx - the host context (persistence read via `ctx.get`).
+ * @param sessionId - the session to look up.
+ * @returns the stored header, or undefined when persistence is absent or the session is unknown.
+ */
+async function storedHeaderFor(ctx: Context, sessionId: SessionId): Promise<SessionHeader | undefined> {
+  const persistence = ctx.get('sessionPersistence')
+  if (persistence === undefined) return undefined
+  return (await persistence.list()).find(header => header.id === sessionId)
+}
+
+/**
+ * The session's last durable title, read from its log. The same fail-soft
+ * read backs `session.restore` and `session.listTrashed`: a gone or
+ * unreadable log yields no title (clients fall back to cwd/id).
+ * @param ctx - the host context (persistence read via `ctx.get`).
+ * @param sessionId - the session whose log carries the title.
+ * @param where - RPC label for the failure log line.
+ * @returns the non-empty title, or undefined when unavailable.
+ */
+async function durableTitleFor(ctx: Context, sessionId: SessionId, where: string): Promise<string | undefined> {
+  const persistence = ctx.get('sessionPersistence')
+  if (persistence === undefined) return undefined
+  try {
+    const { events } = await persistence.readFrom(sessionId, 0)
+    const snapshot = foldSessionTitle(events)
+    return snapshot !== undefined && snapshot.title !== '' ? snapshot.title : undefined
+  } catch (error: unknown) {
+    ctx.logger.warn(
+      `${where}: title read for "${sessionId}" failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return undefined
+  }
+}
+
+/**
+ * Whether a workspace title can name a directory segment on every host
+ * platform. The characters Windows rejects in any path component are refused
+ * everywhere, so a rename never succeeds on POSIX and then fails on Windows.
+ * @param title - the trimmed workspace title.
+ */
+function isFolderSegment(title: string): boolean {
+  if (title === '.' || title === '..') return false
+  return !/[<>:"/\\|?*\u0000]/.test(title) && !/[. ]$/.test(title)
+}
+
+/** Whether a path currently exists; only ENOENT means absent. */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return false
+    throw error
+  }
+}
+
+/** Best-effort rollback of persisted session cwds after a failed rename step. */
+async function revertRetargetedCwds(
+  ctx: Context,
+  persistence: SessionPersistence | undefined,
+  affected: readonly SessionId[],
+  from: string,
+  to: string,
+): Promise<void> {
+  if (persistence === undefined) return
+  for (const sessionId of affected) {
+    try {
+      await persistence.retargetCwd(sessionId, to)
+    } catch (error) {
+      ctx.logger.warn(
+        `workspace rename rollback: could not retarget session "${sessionId}" from "${from}" back to "${to}": ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+}
+
+/**
+ * Rename a workspace's directory and every durable reference to it: the
+ * persisted session cwds (attached, trashed, or subagent — anything whose
+ * header cwd is the old directory), the registry record path, the trash
+ * rows, and the per-session file-change journals. Each step rolls the
+ * previous ones back best-effort on failure, so the workspace never half-moves.
+ * @param ctx - the host context.
+ * @param workspace - the workspace whose folder moved.
+ * @param newPath - the directory's new absolute path (basename = new title).
+ * @param defaults - resolved harness defaults (trash and journal access).
+ */
+async function retargetWorkspaceFolder(
+  ctx: Context,
+  workspace: Workspace,
+  newPath: string,
+  defaults: ApiProxyDefaults,
+): Promise<void> {
+  const oldPath = workspace.path
+  const persistence = ctx.get('sessionPersistence')
+  const affected = persistence === undefined
+    ? []
+    : (await persistence.list()).filter(header => header.cwd === oldPath).map(header => header.id)
+  try {
+    for (const sessionId of affected) {
+      await persistence!.retargetCwd(sessionId, newPath)
+    }
+  } catch (error) {
+    throw new Error(
+      `workspace rename: could not retarget session cwd under "${oldPath}": ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  try {
+    await rename(oldPath, newPath)
+  } catch (error) {
+    await revertRetargetedCwds(ctx, persistence, affected, newPath, oldPath)
+    throw error
+  }
+  try {
+    await ctx.workspaceRegistry.retarget(workspace.id, newPath)
+  } catch (error) {
+    try {
+      await rename(newPath, oldPath)
+    } catch {
+      // Best-effort: report the registry failure that started the rollback.
+    }
+    await revertRetargetedCwds(ctx, persistence, affected, newPath, oldPath)
+    throw error
+  }
+  // Trash rows reference the old directory; retarget them so preview and
+  // restore keep working. Best-effort.
+  const trash = defaults.sessionTrash
+  if (trash !== undefined) {
+    for (const entry of await trash.list()) {
+      if (entry.cwd !== oldPath) continue
+      try {
+        await trash.add({ ...entry, cwd: newPath })
+      } catch (error) {
+        ctx.logger.warn(
+          `workspace rename: could not retarget trash row for "${entry.sessionId}": ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+    }
+  }
+}
 
 /**
  * Non-model settings namespaces intentionally served to the Web client. The
@@ -651,6 +829,13 @@ export interface ApiProxyDefaults {
   saveDefaultModelSelection?: (selection: ModelSelection) => Promise<void>
   /** Default project directory for new sessions whose create request carries no cwd. */
   cwd: string
+  /**
+   * Recoverable-delete index backing `session.trash`/`restore`/`purge`/
+   * `listTrashed`: the record of trashed sessions and their deletion moment.
+   * Absent, `session.trash` fails with `internal` (the deployment does not
+   * mount a trash) and `session.delete` keeps its permanent semantics.
+   */
+  sessionTrash?: SessionTrash
   /** Native open-with-default-application; injectable for carrier tests. */
   openPath?: (path: string, signal: AbortSignal) => Promise<void>
   /** Native text-editor handoff; injectable for settings-document tests. */
@@ -1060,6 +1245,14 @@ class WorkspaceNameConflictError extends Error {
   constructor(readonly workspaceName: string) {
     super(`workspace name '${workspaceName}' is already in use`)
     this.name = 'WorkspaceNameConflictError'
+  }
+}
+
+/** A workspace.rename requested a title that cannot name a directory segment. */
+class WorkspaceNameInvalidError extends Error {
+  constructor(readonly workspaceName: string) {
+    super(`workspace name '${workspaceName}' cannot name a folder: it must be one path segment`)
+    this.name = 'WorkspaceNameInvalidError'
   }
 }
 
@@ -1718,12 +1911,79 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
   }
 
   /**
+   * Detach the session from every Workspace account.
+   * @param sessionId - the session being torn down.
+   * @returns the Workspaces it was detached from (trash records them for restore).
+   */
+  async function detachSessionWorkspaces(sessionId: SessionId): Promise<WorkspaceId[]> {
+    const detached: WorkspaceId[] = []
+    for (const workspace of ctx.workspaceRegistry.list()) {
+      if (!workspace.sessionIds.includes(sessionId)) continue
+      detached.push(workspace.id)
+      await workspace.detachSession(sessionId)
+    }
+    return detached
+  }
+
+  /**
+   * Move one session into the trash: cancel its live agent, detach it from
+   * every Workspace, record the deletion, and publish the removal frame —
+   * the shared core of `session.trash` and `workspace.delete`'s session
+   * sweep. Files stay exactly as the session left them (deletion is
+   * conversation-only); the durable log stays in persistence for preview
+   * and restore.
+   * @param sessionId - the session to trash.
+   * @throws {@link SessionNotFound} when the session is unknown; any
+   *   deployment-level failure (no trash store) propagates to the caller.
+   */
+  async function trashSession(sessionId: SessionId): Promise<void> {
+    const agent = ctx.agents.get(sessionId)
+    const stored = await storedHeaderFor(ctx, sessionId)
+    if (agent === undefined && stored === undefined) {
+      throw new SessionNotFound(`session "${sessionId}" not found`)
+    }
+    // Stop live work first so nothing writes to the session (or its files)
+    // while we tear it down.
+    if (agent !== undefined) agent.cancel({ kind: 'user' })
+    // Detach from every Workspace, keeping the attachment list so restore
+    // can reattach survivors.
+    const workspaceIds = await detachSessionWorkspaces(sessionId)
+    // Record the deletion. Header-derived fields (cwd, lineage, origin)
+    // come from the stored header; the blank bit comes from the live
+    // session when one is attached (cold blanks read as false — the
+    // restore frame's display-only consequence).
+    const blank = agent !== undefined ? sessionBlank(agent.session) : false
+    const trash = defaults.sessionTrash
+    if (trash === undefined) {
+      throw new Error('session trash is unavailable: this deployment mounts no trash store')
+    }
+    await trash.add({
+      sessionId,
+      deletedAt: Date.now(),
+      blank,
+      workspaceIds,
+      ...(stored?.cwd === undefined ? {} : { cwd: stored.cwd }),
+      ...(stored?.parentSession === undefined ? {} : { parentSessionId: stored.parentSession }),
+      ...(stored?.origin === undefined ? {} : { origin: stored.origin }),
+      ...(stored?.agentPreset === undefined ? {} : { agentPreset: stored.agentPreset }),
+    })
+    // Publish the removal frame so every client drops the row.
+    ctx.emit('session/deleted', sessionId)
+  }
+
+  /**
    * Build the session.list baseline shared by listing and search visibility.
    * Attached sessions come from memory; servable cold sessions merge from
    * persistence, and the final order is newest-first.
    */
   async function listVisibleSessionSummaries(signal?: AbortSignal): Promise<SessionSummary[]> {
     signal?.throwIfAborted()
+    // Trashed sessions are invisible everywhere: the client drops their rows
+    // on the session-removed frame, and this baseline filter keeps a
+    // reconnect (or a second tab) from resurrecting them until restored.
+    const trashed = new Set(
+      (await defaults.sessionTrash?.list() ?? []).map(entry => entry.sessionId),
+    )
     const summarizeAttached = (session: Session): SessionSummary => {
       const agent = ctx.agents.get(session.id)
       const projections = listProjectionsFor(ctx, session.header, session)
@@ -1732,13 +1992,15 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         ...projections === undefined ? {} : { projections },
       }
     }
-    const items = ctx.sessions.list().map(summarizeAttached)
+    const items = ctx.sessions.list()
+      .filter(session => !trashed.has(session.id))
+      .map(summarizeAttached)
     signal?.throwIfAborted()
     const attached = new Set(items.map(item => item.sessionId))
     const persistence = ctx.get('sessionPersistence')
     if (persistence !== undefined) {
       const cold = (await persistence.list(signal))
-        .filter(meta => !attached.has(meta.id) && meta.cwd !== undefined)
+        .filter(meta => !attached.has(meta.id) && meta.cwd !== undefined && !trashed.has(meta.id))
       signal?.throwIfAborted()
       for (let offset = 0; offset < cold.length; offset += COLD_SUMMARY_BATCH_SIZE) {
         signal?.throwIfAborted()
@@ -2179,6 +2441,16 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
         const cwd = workspace?.path ?? request.payload.cwd ?? defaults.cwd
         const requestedPreset = request.payload.agentPreset
+        // An explicit id naming a trashed session must not adopt or overwrite
+        // the recoverable log: restoring it is the only way back.
+        if (request.payload.sessionId !== undefined
+          && await defaults.sessionTrash?.get(request.payload.sessionId) !== undefined) {
+          return err(request, {
+            code: 'session-trashed',
+            message: `session "${sessionId}" is in the trash; restore it before creating a session with that id`,
+            details: { sessionId },
+          })
+        }
         try {
           await ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset)
         } catch (error: unknown) {
@@ -2241,6 +2513,16 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async history(request) {
         const { sessionId, beforeSeq, maxMessages } = request.payload
+        // A trashed session's transcript is servable only through the trash
+        // preview path (`session.trashHistory`); ordinary history must not
+        // reach the recoverable log.
+        if (await defaults.sessionTrash?.get(sessionId) !== undefined) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `session "${sessionId}" is in the trash and has no ordinary history`,
+            details: { sessionId },
+          })
+        }
         try {
           const source = await historySourceFor(sessionId)
           // Both awaits happen BEFORE the cut. Ensuring the recorded
@@ -2362,6 +2644,15 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async fork(request) {
         const { sessionId, atSeq } = request.payload
+        // Forks read the source log; a trashed source must stay unreachable
+        // until restored (same invariant as `session.history`).
+        if (await defaults.sessionTrash?.get(sessionId) !== undefined) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `session "${sessionId}" is in the trash and cannot be forked until restored`,
+            details: { sessionId },
+          })
+        }
         let source: SessionReadState
         try {
           source = await readSessionState(sessionId)
@@ -2631,6 +2922,274 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         agent.cancel({ kind: 'user' }, { keepInbox: true })
         return Promise.resolve(ok(request, { accepted: true as const }))
       },
+
+      async delete(request) {
+        const { sessionId } = request.payload
+        const agent = ctx.agents.get(sessionId)
+        if (agent !== undefined && hasSubagentOwner(agent.session, agent)) {
+          return err(request, subagentOwnershipError(sessionId))
+        }
+        const persistence = ctx.get('sessionPersistence')
+        const stored = persistence === undefined
+          ? undefined
+          : (await persistence.list()).find(header => header.id === sessionId)
+        if (agent === undefined && stored === undefined) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `session "${sessionId}" not found`,
+            details: { sessionId },
+          })
+        }
+        // Stop live work first so nothing writes to the session (or its files)
+        // while we tear it down.
+        if (agent !== undefined) agent.cancel({ kind: 'user' })
+        // 1. Detach it from every Workspace (deletion never touches files).
+        await detachSessionWorkspaces(sessionId)
+        // 2. Remove the durable log from persistence.
+        if (persistence !== undefined && stored !== undefined) {
+          try {
+            const location = persistence.locate(stored)
+            if (location !== undefined) {
+              await rm(location.path, { force: true })
+            }
+          } catch (error: unknown) {
+            ctx.logger.warn(
+              `session.delete: could not remove persisted log for "${sessionId}": ${error instanceof Error ? error.message : String(error)}`,
+            )
+          }
+        }
+        // 3. Publish the removal frame so every client drops the row. The
+        //    events stream subscribes to this host-level deletion notice
+        //    (session/disposed fires only for a live session being torn down;
+        //    a cold delete never reaches it, and a live delete here does not
+        //    dispose the agent handle we do not hold).
+        ctx.emit('session/deleted', sessionId)
+        return ok(request, { deleted: true as const })
+      },
+
+      async trash(request) {
+        const { sessionId } = request.payload
+        const agent = ctx.agents.get(sessionId)
+        if (agent !== undefined && hasSubagentOwner(agent.session, agent)) {
+          return err(request, subagentOwnershipError(sessionId))
+        }
+        const trash = defaults.sessionTrash
+        if (trash === undefined) {
+          return err(request, {
+            code: 'internal',
+            message: 'session trash is unavailable: this deployment mounts no trash store',
+            details: {},
+          })
+        }
+        if (await trash.get(sessionId) !== undefined) {
+          return err(request, {
+            code: 'session-trashed',
+            message: `session "${sessionId}" is already in the trash`,
+            details: { sessionId },
+          })
+        }
+        try {
+          await trashSession(sessionId)
+        } catch (error: unknown) {
+          if (error instanceof SessionNotFound) {
+            return err(request, {
+              code: 'session-not-found',
+              message: error.message,
+              details: { sessionId },
+            })
+          }
+          return err(request, {
+            code: 'internal',
+            message: `failed to trash session "${sessionId}": ${String(error)}`,
+            details: {},
+          })
+        }
+        return ok(request, { trashed: true as const })
+      },
+
+      async restore(request) {
+        const { sessionId } = request.payload
+        const trash = defaults.sessionTrash
+        if (trash === undefined) {
+          return err(request, {
+            code: 'internal',
+            message: 'session trash is unavailable: this deployment mounts no trash store',
+            details: {},
+          })
+        }
+        const entry = await trash.get(sessionId)
+        if (entry === undefined) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `session "${sessionId}" is not in the trash`,
+            details: { sessionId },
+          })
+        }
+        // No live-agent guard: trash cancels but does not dispose the agent
+        // handle (same posture as session.delete), and `session.create` with
+        // an explicit id already refuses trashed ids, so the trash row and a
+        // live agent for the same id cannot race into existence here.
+        const stored = await storedHeaderFor(ctx, sessionId)
+        if (stored === undefined) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `session "${sessionId}" has no durable log to restore`,
+            details: { sessionId },
+          })
+        }
+        // The last durable title rides the restore frame so the row comes
+        // back named: the client dropped its projection store on removal and
+        // the frame design avoids a list refresh. Same fail-soft log read as
+        // `session.listTrashed` (a gone or unreadable log yields no title).
+        const title = await durableTitleFor(ctx, sessionId, 'session.restore')
+        // 1. Reattach to the Workspaces the session was detached from, when
+        //    they still exist (a workspace deleted meanwhile is skipped).
+        for (const workspaceId of entry.workspaceIds) {
+          const workspace = ctx.workspaceRegistry.get(workspaceId)
+          if (workspace === undefined || workspace.sessionIds.includes(sessionId)) continue
+          try {
+            await workspace.attachSession(sessionId)
+          } catch (error: unknown) {
+            ctx.logger.warn(
+              `session.restore: could not reattach "${sessionId}" to workspace "${workspaceId}": ${error instanceof Error ? error.message : String(error)}`,
+            )
+          }
+        }
+        // 2. Drop the trash row and publish the restore frame so every client
+        //    re-adds the row without a list refresh.
+        await trash.remove(sessionId)
+        ctx.emit('session/restored', {
+          sessionId,
+          blank: entry.blank,
+          ...(title === undefined ? {} : { title }),
+          ...(stored.parentSession === undefined ? {} : { parentSessionId: stored.parentSession }),
+          ...(stored.origin === undefined ? {} : { origin: stored.origin }),
+          ...(stored.cwd === undefined ? {} : { cwd: stored.cwd }),
+          ...(stored.agentPreset === undefined ? {} : { agentPreset: stored.agentPreset }),
+        })
+        return ok(request, { restored: true as const })
+      },
+
+      async purge(request) {
+        const { sessionId } = request.payload
+        const trash = defaults.sessionTrash
+        if (trash === undefined) {
+          return err(request, {
+            code: 'internal',
+            message: 'session trash is unavailable: this deployment mounts no trash store',
+            details: {},
+          })
+        }
+        const entry = await trash.get(sessionId)
+        if (entry === undefined) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `session "${sessionId}" is not in the trash`,
+            details: { sessionId },
+          })
+        }
+        // Remove the durable log (file changes were already rolled back at
+        // trash time), then drop the index row. Best-effort on the log like
+        // session.delete: an unremovable artifact reports and still purges.
+        const persistence = ctx.get('sessionPersistence')
+        const stored = await storedHeaderFor(ctx, sessionId)
+        if (persistence !== undefined && stored !== undefined) {
+          try {
+            const location = persistence.locate(stored)
+            if (location !== undefined) {
+              await rm(location.path, { force: true })
+            }
+          } catch (error: unknown) {
+            ctx.logger.warn(
+              `session.purge: could not remove persisted log for "${sessionId}": ${error instanceof Error ? error.message : String(error)}`,
+            )
+          }
+        }
+        await trash.remove(sessionId)
+        // The row is already gone from every list; the frame is a no-op for
+        // clients but keeps the "removed" invariant for late reconnects.
+        ctx.emit('session/deleted', sessionId)
+        return ok(request, { purged: true as const })
+      },
+
+      async listTrashed(request) {
+        const trash = defaults.sessionTrash
+        if (trash === undefined) {
+          return err(request, {
+            code: 'internal',
+            message: 'session trash is unavailable: this deployment mounts no trash store',
+            details: {},
+          })
+        }
+        // Expired entries are destroyed before the list is assembled, so the
+        // response always reflects the current retention state.
+        await sweepSessionTrash(ctx, trash, Date.now())
+        const entries = await trash.list()
+        const persistence = ctx.get('sessionPersistence')
+        const persisted = persistence === undefined
+          ? new Map<SessionId, SessionHeader>()
+          : new Map((await persistence.list()).map(header => [header.id, header]))
+        const items: TrashedSession[] = []
+        for (const entry of entries) {
+          // The last durable title comes from the log; a log that is gone or
+          // unreadable simply yields no title (clients fall back to cwd/id).
+          const title = persisted.has(entry.sessionId)
+            ? await durableTitleFor(ctx, entry.sessionId, 'session.listTrashed')
+            : undefined
+          items.push({
+            sessionId: entry.sessionId,
+            deletedAt: entry.deletedAt,
+            ...(title === undefined || title === '' ? {} : { title }),
+            ...(entry.cwd === undefined ? {} : { cwd: entry.cwd }),
+            ...(entry.parentSessionId === undefined ? {} : { parentSessionId: entry.parentSessionId }),
+            ...(entry.origin === undefined ? {} : { origin: entry.origin }),
+            ...(entry.agentPreset === undefined ? {} : { agentPreset: entry.agentPreset }),
+          })
+        }
+        items.sort((a, b) => b.deletedAt - a.deletedAt)
+        return ok(request, { items })
+      },
+
+      async trashHistory(request) {
+        const { sessionId, beforeSeq, maxMessages } = request.payload
+        const trash = defaults.sessionTrash
+        if (trash === undefined || await trash.get(sessionId) === undefined) {
+          return err(request, {
+            code: 'session-not-found',
+            message: `session "${sessionId}" is not in the trash`,
+            details: { sessionId },
+          })
+        }
+        const persistence = ctx.get('sessionPersistence')
+        if (persistence === undefined) {
+          return err(request, {
+            code: 'internal',
+            message: 'session trash preview is unavailable: this deployment mounts no session persistence',
+            details: {},
+          })
+        }
+        // A trashed session whose backend never materialized an artifact (a
+        // created-but-never-appended session, which backends may defer) has
+        // nothing to preview — serve the empty page rather than an error.
+        const stored = (await persistence.list()).find(header => header.id === sessionId)
+        if (stored === undefined) {
+          return ok(request, { events: [], hasMore: false })
+        }
+        try {
+          const { events } = await persistence.readFrom(sessionId, 0)
+          // Detached page through the same presenter path as ordinary
+          // history, without a scope or projection baseline: the preview is
+          // read-only, so generic cards and no fresh units are correct.
+          const page = historyPage(ctx, events, beforeSeq, maxMessages)
+          return ok(request, { events: page.events, hasMore: page.hasMore })
+        } catch (error: unknown) {
+          return err(request, {
+            code: 'internal',
+            message: `trash preview unavailable for session "${sessionId}": ${String(error)}`,
+            details: {},
+          })
+        }
+      },
     },
 
     subagents: {
@@ -2838,6 +3397,20 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           if (ctx.workspaceRegistry.list().some(other => other.id !== workspace.id && other.title === title)) {
             throw new WorkspaceNameConflictError(title)
           }
+          // The directory name follows the title so the two never diverge: a
+          // title-only change skips the folder, anything else renames the
+          // folder and every durable reference to it in one gesture.
+          const oldPath = workspace.path
+          const newPath = join(dirname(oldPath), title)
+          if (newPath === oldPath) {
+            await workspace.setTitle(title)
+            return
+          }
+          if (!isFolderSegment(title)) throw new WorkspaceNameInvalidError(title)
+          if (await pathExists(newPath)) {
+            throw new WorkspaceNameConflictError(title)
+          }
+          await retargetWorkspaceFolder(ctx, workspace, newPath, defaults)
           await workspace.setTitle(title)
         })
         workspaceCreationChain = operation.then(() => undefined, () => undefined)
@@ -2847,6 +3420,13 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           if (error instanceof WorkspaceNameConflictError) {
             return err(request, {
               code: 'workspace-name-conflict',
+              message: error.message,
+              details: { name: error.workspaceName },
+            })
+          }
+          if (error instanceof WorkspaceNameInvalidError) {
+            return err(request, {
+              code: 'workspace-name-invalid',
               message: error.message,
               details: { name: error.workspaceName },
             })
@@ -3556,6 +4136,28 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           }),
           ctx.on('session/disposed', (session: Session) => {
             queue.push(frame({ type: 'host/session-removed', sessionId: session.id }))
+          }),
+          // Explicit session.delete: a cold session never emits
+          // session/disposed, and a live delete does not dispose the agent
+          // handle we do not hold, so the deletion notice is the removal
+          // signal for every delete path.
+          ctx.on('session/deleted', (sessionId: SessionId) => {
+            queue.push(frame({ type: 'host/session-removed', sessionId }))
+          }),
+          // session.restore: the row comes back with the same summary fields
+          // a session-added frame carries, plus the durable title, so clients
+          // upsert without a list refresh. The payload is the restore impl's
+          // precomputed projection.
+          ctx.on('session/restored', (payload: {
+            sessionId: SessionId
+            blank: boolean
+            title?: string
+            parentSessionId?: SessionId
+            origin?: 'subagent'
+            cwd?: string
+            agentPreset?: string
+          }) => {
+            queue.push(frame({ type: 'host/session-restored', ...payload }))
           }),
           ctx.on('agent/status', ({ agent, status }: { agent: Agent; status: AgentStatus }) => {
             queue.push(frame({ type: 'host/session-status', sessionId: agent.id, running: status === 'running' }))

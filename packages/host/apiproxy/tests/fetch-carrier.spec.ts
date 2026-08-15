@@ -108,6 +108,24 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async cancel(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { accepted: true as const } } }
       },
+      async delete(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { deleted: true as const } } }
+      },
+      async trash(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { trashed: true as const } } }
+      },
+      async restore(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { restored: true as const } } }
+      },
+      async purge(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { purged: true as const } } }
+      },
+      async listTrashed(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { items: [] } } }
+      },
+      async trashHistory(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { events: [], hasMore: false } } }
+      },
     },
     subagents: {
       async list(request) {

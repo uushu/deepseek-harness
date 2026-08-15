@@ -765,6 +765,18 @@ describe('remaining branches', () => {
     expect(session.getSnapshot().removed).toBe(true)
   })
 
+  it('the restore relay clears the removal flag (the composer unlock re-arm)', () => {
+    const { session } = makeSession()
+    session.handleRemoved()
+    expect(session.getSnapshot().removed).toBe(true)
+    session.handleRestored()
+    expect(session.getSnapshot().removed).toBe(false)
+    // Idempotent: an already-live instance stays unmodified.
+    const settled = session.getSnapshot()
+    session.handleRestored()
+    expect(session.getSnapshot()).toBe(settled)
+  })
+
   it('drops live events while cold/error (no window upkeep)', async () => {
     const { api, session } = makeSession()
     session.handleMuxEnvelope('r' as never, { type: 'session/event', sessionId: SID, event: ev.user(0, '冷态帧') })

@@ -578,6 +578,17 @@ export class Session implements SessionFace {
   }
 
   /**
+   * host/session-restored relay: a trashed session came back — clear the
+   * removal flag so a resident (staged) instance unlocks its composer
+   * instead of staying locked as "removed" forever.
+   */
+  handleRestored(): void {
+    if (!this.removed) return
+    this.removed = false
+    this.notifier.markDirty()
+  }
+
+  /**
    * host/agent-error relay: the only outlet for live failures with no turn position.
    * @param message - the stringified error.
    */

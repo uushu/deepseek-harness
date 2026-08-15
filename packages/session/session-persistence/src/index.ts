@@ -221,6 +221,20 @@ export abstract class SessionPersistence extends Service {
   Promise<{ meta: SessionHeader; events: SessionEvent[] }>
 
   /**
+   * Retarget a materialized session's canonical working directory — the
+   * workspace folder it lives in was renamed, so the stored header cwd must
+   * follow. Backends that cannot rewrite the header reject (the workspace
+   * rename surfaces that as a failure before touching the directory).
+   * @param _id - the persisted session whose cwd is retargeted.
+   * @param _cwd - the new absolute working directory.
+   * @returns resolution after durability.
+   * @throws when this backend cannot rewrite the stored header.
+   */
+  retargetCwd(_id: SessionId, _cwd: string): Promise<void> {
+    return Promise.reject(new Error('this session persistence backend does not support cwd retargeting'))
+  }
+
+  /**
    * Lightweight listing from metadata, without a full-log parse.
    * @param signal - optional cancellation for backend listing work.
    * @returns one header per materialized session.

@@ -35,11 +35,23 @@ export interface RpcErrorDetailsMap {
   'session-not-found': { sessionId: SessionId }
   'model-unavailable': { provider: string; model: string }
   'session-conflict': { sessionId: SessionId; requestedCwd: string; existingCwd?: string }
+  /**
+   * The session is in the trash: the recoverable-delete domain refuses the
+   * operation (`create` with its id, a repeated `trash`) or the trash domain
+   * refuses an inconsistent one (`restore` of a session that came back live).
+   */
+  'session-trashed': { sessionId: SessionId }
   'invalid-time-zone': { value: string }
   'workspace-attach-failed': { sessionId: SessionId; workspaceId: string }
   'workspace-not-found': { workspaceId: string }
   'workspace-invalid-path': { path: string }
   'workspace-name-conflict': { name: string }
+  /**
+   * `workspace.rename` requested a title that cannot name a directory segment
+   * (separators, Windows-reserved characters, trailing dot/space) — the
+   * folder rename would fail on at least one host platform.
+   */
+  'workspace-name-invalid': { name: string }
   'workspace-move-invalid': { workspaceId: string; sessionId: SessionId; beforeSessionId?: SessionId }
   'directory-unreadable': { path: string }
   'directory-exists': { path: string }

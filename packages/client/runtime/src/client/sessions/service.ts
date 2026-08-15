@@ -16,7 +16,8 @@
  */
 import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type {
-  IApiClient, RpcError, RpcResult, SessionId, SubagentAddress, JobView, WorkspaceId,
+  HistoryEntry, IApiClient, RpcError, RpcResult, SessionId, SubagentAddress, JobView,
+  TrashedSession, WorkspaceId,
 } from '@deepseek-ai/dsh-api-remotes/client'
 // Value import from the inline-safe wire layer (not the connection plugin):
 // plugin-to-plugin value imports are a bundle purity error.
@@ -529,6 +530,84 @@ export class SessionRuntime implements ISessions {
       if (!renamed.ok) throw new Error(`fork child rename failed: ${renamed.error.code}: ${renamed.error.message}`)
     }
     return childId
+  }
+
+  /**
+   * Permanently delete a session: stops its live agent, rolls back its file
+   * changes, detaches it from Workspaces, and removes its durable log. The
+   * Host's `host/session-removed` frame drops the row from the list store.
+   * @param sessionId - session to delete.
+   * @throws when the session is unknown or a session-backed subagent.
+   */
+  async deleteSession(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.delete(sessionId)
+    if (!result.ok) throw new Error(`session delete failed: ${result.error.code}: ${result.error.message}`)
+  }
+
+  /**
+   * Move a session into the trash (recoverable delete): the Host stops its
+   * live agent, detaches it from Workspaces, and keeps the durable log for
+   * 30 days. The `host/session-removed` frame drops the row from the list
+   * store; the trash page can preview, restore, or purge it. Deletion is
+   * conversation-only — files stay as the session left them.
+   * @param sessionId - session to trash.
+   * @throws when the session is unknown or a session-backed subagent.
+   */
+  async trashSession(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.trash(sessionId)
+    if (!result.ok) throw new Error(`session trash failed: ${result.error.code}: ${result.error.message}`)
+  }
+
+  /**
+   * Restore a trashed session: the Host reattaches it to its surviving
+   * Workspaces and the `host/session-restored` frame re-adds the row to the
+   * list store. The conversation comes back; the files stay exactly as the
+   * deletion scope left them.
+   * @param sessionId - trashed session to restore.
+   * @throws when the session is not in the trash.
+   */
+  async restoreSession(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.restore(sessionId)
+    if (!result.ok) throw new Error(`session restore failed: ${result.error.code}: ${result.error.message}`)
+  }
+
+  /**
+   * Permanently destroy a trashed session: the Host removes its durable log
+   * and drops the trash row. Irreversible.
+   * @param sessionId - trashed session to purge.
+   * @throws when the session is not in the trash.
+   */
+  async purgeSession(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.purge(sessionId)
+    if (!result.ok) throw new Error(`session purge failed: ${result.error.code}: ${result.error.message}`)
+  }
+
+  /**
+   * List trashed sessions (newest deletion first). Expired entries are
+   * permanently purged by the Host before the list is assembled.
+   * @param signal - cancellation for a superseded listing.
+   * @returns the trash rows, or a business/transport error.
+   */
+  listTrashed(signal?: AbortSignal): Promise<RpcResult<{ items: TrashedSession[] }>> {
+    return this.manager.listTrashed(signal)
+  }
+
+  /**
+   * Read one paged window of a trashed session's history for the trash
+   * page's read-only preview. Only trashed sessions are servable.
+   * @param sessionId - the trashed session to preview.
+   * @param beforeSeq - page backwards from this event seq (absent = tail).
+   * @param maxMessages - page size in whole messages.
+   * @param signal - cancellation for a superseded read.
+   * @returns the paged history entries, or a business/transport error.
+   */
+  trashHistory(
+    sessionId: SessionId,
+    beforeSeq: number | undefined,
+    maxMessages: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<RpcResult<{ events: HistoryEntry[]; hasMore: boolean }>> {
+    return this.manager.trashHistory(sessionId, beforeSeq, maxMessages, signal)
   }
 
   /**

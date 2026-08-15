@@ -228,6 +228,28 @@ export interface SessionSearchItem {
   snippet: string
 }
 
+/**
+ * One recoverable-deleted session row (`session.listTrashed`). The durable
+ * log still exists in persistence while the entry is in the trash, so the
+ * client can preview it and restore it; only `session.purge` (or the
+ * retention sweep) removes it for good.
+ */
+export interface TrashedSession {
+  readonly sessionId: SessionId
+  /** Unix epoch milliseconds of the trash action (the retention anchor). */
+  readonly deletedAt: number
+  /** The last durable title, when the log carried one (clients fall back to cwd/id). */
+  readonly title?: string
+  /** Project directory the session was created in, if any. */
+  readonly cwd?: string
+  /** The session this one was forked from, if any. */
+  readonly parentSessionId?: SessionId
+  /** Coarse product classification (informational: subagents refuse trash). */
+  readonly origin?: 'subagent'
+  /** The composition the session's agent was built from. */
+  readonly agentPreset?: string
+}
+
 /** Session-domain unary methods (the map keys session.* of RpcMethodMap). */
 export interface SessionsApi {
   /** Lists persisted sessions (updatedAt descending). v1 returns everything; cursor is a reserved seat, unimplemented. */
@@ -369,5 +391,72 @@ export interface SessionsApi {
    * subagents reject with `agent-busy`.
    */
   cancel(request: RpcRequest<{ sessionId: SessionId }>): Promise<RpcResponse<{ accepted: true }>>
+
+  /**
+   * Permanently deletes a session: stops its live agent (if attached),
+   * detaches it from every Workspace, and removes the session's durable log
+   * from persistence. Files are never touched — deletion is
+   * conversation-only. This is destructive and irreversible — the client
+   * confirmation dialog must say so. An unknown session fails with
+   * `session-not-found`; a session-backed subagent rejects with
+   * `agent-busy`.
+   */
+  delete(request: RpcRequest<{ sessionId: SessionId }>):
+  Promise<RpcResponse<{ deleted: true }>>
+
+  /**
+   * Moves a session into the trash (recoverable delete): stops its live
+   * agent (if attached), detaches it from every Workspace, and records the
+   * deletion in the trash index — while KEEPING the durable log in
+   * persistence so the conversation can be previewed and restored. Trashed
+   * sessions disappear from `session.list`/`search` and refuse
+   * `create`/`history`/`fork` until restored or purged. Entries older than
+   * the retention window (30 days) are swept automatically. Deletion is
+   * conversation-only: the session's files stay exactly as it left them, so
+   * a restore brings back a consistent conversation+files pair. An unknown
+   * session fails with `session-not-found`; a session-backed subagent
+   * rejects with `agent-busy`.
+   */
+  trash(request: RpcRequest<{ sessionId: SessionId }>):
+  Promise<RpcResponse<{ trashed: true }>>
+
+  /**
+   * Brings a trashed session back: removes its trash-index row and reattaches
+   * it to the Workspaces it was detached from (surviving ones only). Files
+   * are never touched by deletion or restore, so the restored conversation
+   * stays consistent with its files. An unknown or untrashed session fails
+   * with `session-not-found`.
+   */
+  restore(request: RpcRequest<{ sessionId: SessionId }>):
+  Promise<RpcResponse<{ restored: true }>>
+
+  /**
+   * Permanently destroys a trashed session: removes its durable log from
+   * persistence and drops the trash-index row (files are never touched).
+   * This is irreversible. An unknown or untrashed session fails with
+   * `session-not-found`.
+   */
+  purge(request: RpcRequest<{ sessionId: SessionId }>):
+  Promise<RpcResponse<{ purged: true }>>
+
+  /**
+   * Lists trashed sessions, newest deletion first. Expired entries are swept
+   * (permanently purged) before the list is assembled, so the response
+   * reflects the current retention state. Each row carries the last durable
+   * title when the log still has one (titles are computed from the log, so a
+   * log that is gone or unreadable simply yields no title).
+   */
+  listTrashed(request: RpcRequest<{ cursor?: string }>):
+  Promise<RpcResponse<{ items: TrashedSession[] }>>
+
+  /**
+   * Reads a window of a trashed session's history for preview. Same paging
+   * and message-boundary semantics as `session.history`, without the
+   * projection baseline (a read-only preview needs no fresh units). Only
+   * trashed sessions are servable here; a live, cold-but-active, or unknown
+   * session fails with `session-not-found`.
+   */
+  trashHistory(request: RpcRequest<{ sessionId: SessionId; beforeSeq?: number; maxMessages?: number }>):
+  Promise<RpcResponse<{ events: HistoryEntry[]; hasMore: boolean }>>
 
 }
