@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-/** AppearanceRow behavior: three cubes, selection follows the persisted
- * preference, clicks drive setTheme. */
+/** AppearanceRow behavior: four cubes (light/dark/system/harness), selection
+ * follows the persisted preference, clicks drive setTheme. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createSnapshotStore, type SessionListState, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
@@ -17,6 +17,7 @@ const COPY: Record<string, string> = {
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
   'appearance.system': 'System',
+  'appearance.harness': 'Harness',
 }
 
 /** Empty global standard-kit hooks (the row reads neither). */
@@ -54,12 +55,19 @@ const pressed = (name: RegExp): string | null =>
   screen.getByRole('button', { name }).getAttribute('aria-pressed')
 
 describe('AppearanceRow', () => {
-  it('renders the title and three cubes with the preference cube selected', () => {
+  it('renders the title and four cubes with the preference cube selected', () => {
     mount('dark')
     expect(screen.getByText('Appearance')).toBeDefined()
     expect(pressed(/Dark/)).toBe('true')
     expect(pressed(/Light/)).toBe('false')
     expect(pressed(/System/)).toBe('false')
+    expect(pressed(/Harness/)).toBe('false')
+  })
+
+  it('renders the Harness cube selected when the harness preference is active', () => {
+    mount('harness')
+    expect(pressed(/Harness/)).toBe('true')
+    expect(pressed(/Dark/)).toBe('false')
   })
 
   it('click drives setTheme; selection follows the store mirror, not the click echo', () => {
@@ -71,5 +79,14 @@ describe('AppearanceRow', () => {
     act(() => { b.store.actions.sync('light', 1) })
     expect(pressed(/Light/)).toBe('true')
     expect(pressed(/Dark/)).toBe('false')
+  })
+
+  it('clicking the Harness cube drives setTheme with the harness id', () => {
+    const b = mount('system')
+    fireEvent.click(screen.getByRole('button', { name: /Harness/ }))
+    expect(b.setTheme).toHaveBeenCalledWith('harness')
+    expect(pressed(/System/)).toBe('true')
+    act(() => { b.store.actions.sync('harness', 1) })
+    expect(pressed(/Harness/)).toBe('true')
   })
 })

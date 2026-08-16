@@ -2,21 +2,30 @@
  * Host-rendered theme bootstrap for the browser's pre-plugin interval. Each
  * index response embeds the current durable built-in preference; the browser
  * resolves only `system`, then writes the same DOM fields ui-layout's
- * ThemePresenter owns after the client plugin tree activates.
+ * ThemePresenter owns after the client plugin tree activates. The `harness`
+ * preference additionally inlines its alias-token overrides on body so the
+ * first paint already wears the Harness palette (no dark→harness flash).
  */
 
+import { HARNESS_THEME_ID, HARNESS_TOKENS } from './harness-theme.ts'
 import { DEFAULT_PREFERENCE, type ThemePreference } from './theme-settings.ts'
 
 /** Build the inline script for one schema-validated built-in preference. */
 function bootThemeScript(preference: ThemePreference): string {
+  const harness = preference === HARNESS_THEME_ID
+  const tokens = harness ? JSON.stringify(HARNESS_TOKENS) : 'null'
   return `<script>(() => {
   const preference = ${JSON.stringify(preference)}
   const systemDark = preference === 'system'
     && typeof matchMedia !== 'undefined'
     && matchMedia('(prefers-color-scheme: dark)').matches
-  const dark = preference === 'dark' || systemDark
+  const dark = preference === 'dark' || preference === 'harness' || systemDark
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
   document.body.toggleAttribute('data-ds-dark-theme', dark)
+  const tokens = ${tokens}
+  if (tokens) for (const [name, value] of Object.entries(tokens)) {
+    document.body.style.setProperty(name, value)
+  }
 })()</script>`
 }
 

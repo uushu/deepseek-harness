@@ -29,7 +29,7 @@ describe('ThemeRuntime', () => {
     // jsdom matchMedia is absent; system resolves to light.
     expect(snapshot.active.id).toBe('light')
     expect(snapshot.active.colorScheme).toBe('light')
-    expect(snapshot.themes.map(t => t.id)).toEqual(['light', 'dark'])
+    expect(snapshot.themes.map(t => t.id)).toEqual(['light', 'dark', 'harness'])
   })
 
   it('setTheme switches, writes through the scope, republishes, and keeps DOM untouched', () => {
@@ -46,6 +46,19 @@ describe('ThemeRuntime', () => {
     theme.setTheme('dark')
     expect(events).toHaveLength(1)
     expect(host.set).toHaveBeenCalledOnce()
+  })
+
+  it('harness is a built-in dark-scheme theme carrying the Harness alias tokens', () => {
+    const { theme, host } = make()
+    theme.setTheme('harness')
+    const snapshot = theme.getTheme()
+    expect(snapshot.preference).toBe('harness')
+    expect(snapshot.active.id).toBe('harness')
+    expect(snapshot.active.colorScheme).toBe('dark')
+    expect(host.set).toHaveBeenCalledWith('preference', 'harness')
+    expect(snapshot.active.tokens['--dsw-alias-bg-base']).toBe('#0a0a0a')
+    expect(snapshot.active.tokens['--dsw-alias-brand-primary']).toBe('#6799fe')
+    expect(snapshot.active.tokens['--dsw-font-family']).toContain('DM Sans')
   })
 
   it('adopts a published Host section without writing it back', () => {
@@ -75,12 +88,12 @@ describe('ThemeRuntime', () => {
   it('registered themes join the snapshot; disposing the active one resets to default', () => {
     const { theme, events, host } = make()
     const dispose = theme.register({ id: 'sepia', colorScheme: 'light', tokens: { '--dsw-alias-bg-base': 'red' } })
-    expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark', 'sepia'])
+    expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark', 'harness', 'sepia'])
     theme.setTheme('sepia')
     expect(theme.getTheme().active.tokens['--dsw-alias-bg-base']).toBe('red')
     dispose()
     expect(theme.getTheme().preference).toBe('system')
-    expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark'])
+    expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark', 'harness'])
     // Custom ids are in-process extension themes; only the built-in product
     // preferences cross the Host settings schema.
     expect(host.set).not.toHaveBeenCalled()

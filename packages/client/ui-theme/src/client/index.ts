@@ -18,6 +18,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { AppearanceRowInjected } from './AppearanceRow.tsx'
 import { AppearanceRow } from './AppearanceRow.tsx'
 import { createAppearanceRowStore } from './settings-store.ts'
+import { HARNESS_THEME_ID, HARNESS_TOKENS } from '../harness-theme.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
 import {
   DEFAULT_PREFERENCE, isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
@@ -28,6 +29,7 @@ export type { AppearanceRowComponentProps, AppearanceRowInjected } from './Appea
 export type { AppearanceRowState } from './settings-store.ts'
 export type { ThemeKey } from './locales.ts'
 export type { ThemePreference, ThemeSettings } from '../theme-settings.ts'
+export { HARNESS_THEME_ID, HARNESS_TOKENS } from '../harness-theme.ts'
 
 /** Namespace owning this feature's settings-row copy. */
 export const SETTINGS_NS = 'settings.theme'
@@ -118,6 +120,8 @@ declare module '@deepseek-ai/cordis' {
 const BUILTIN_THEMES: readonly ThemeDefinition[] = Object.freeze([
   Object.freeze({ id: 'light', colorScheme: 'light' as const, tokens: Object.freeze({}) }),
   Object.freeze({ id: 'dark', colorScheme: 'dark' as const, tokens: Object.freeze({}) }),
+  // Harness 官网风：dark base palette + alias token 覆盖（见 harness-theme.ts）。
+  Object.freeze({ id: HARNESS_THEME_ID, colorScheme: 'dark' as const, tokens: Object.freeze({ ...HARNESS_TOKENS }) }),
 ])
 
 const BUILTIN_INSPECT_TOKENS: readonly ThemeTokenInspection[] = Object.freeze([

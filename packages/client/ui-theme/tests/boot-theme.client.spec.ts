@@ -64,6 +64,16 @@ describe('theme boot index transform', () => {
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
   })
 
+  it('harness rides the dark palette and inlines its alias tokens for the first paint', () => {
+    const html = executeBootstrap('harness')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(true)
+    expect(document.body.style.getPropertyValue('--dsw-alias-bg-base')).toBe('#0a0a0a')
+    expect(document.body.style.getPropertyValue('--dsw-alias-brand-primary')).toBe('#6799fe')
+    expect(html).toContain('--dsw-alias-bg-base')
+    expect(html).toContain('--dsw-font-markdown-h1')
+  })
+
   it('appends the script to a body-less fragment', () => {
     const html = injectBootTheme('<main>loading</main>', 'dark')
     expect(html.startsWith('<main>loading</main><script>')).toBe(true)

@@ -727,6 +727,21 @@ export const IconFollowsystemOutline16 = ({ size = 16, className }: IconProps) =
   </svg>
 )
 
+/** ic_ds_harness_outline_16（Harness 官网风主题：六边形插件光环） */
+export const IconHarnessOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 1.5L13.5 4.5V11.5L8 14.5L2.5 11.5V4.5L8 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    <path
+      d="M8 4.6V11.4M4.9 6.3L11.1 9.7M11.1 6.3L4.9 9.7"
+      stroke="currentColor"
+      strokeWidth="0.9"
+      strokeLinecap="round"
+      opacity="0.55"
+    />
+    <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+  </svg>
+)
+
 /** ic_ds_data_outline_16 */
 export const IconDataOutline16 = ({ size = 16, className }: IconProps) => (
   <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
