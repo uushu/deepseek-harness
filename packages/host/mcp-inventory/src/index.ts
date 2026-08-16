@@ -10,7 +10,6 @@ import type {
   McpFiberPhase,
   McpInventorySnapshot,
   McpServerView,
-  McpTransport,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -52,7 +51,7 @@ function isMcpClientEntry(moduleName: string): boolean {
 /** Key NAMES of a string-keyed env/header map — values are secrets and never leave the host. */
 function keyNames(values: unknown): readonly string[] | undefined {
   if (typeof values !== 'object' || values === null) return undefined
-  const keys = Object.keys(values as Record<string, unknown>)
+  const keys = Object.keys(values)
   return keys.length === 0 ? undefined : keys
 }
 
@@ -75,7 +74,7 @@ function projectConfig(config: unknown): Pick<
   if (typeof config !== 'object' || config === null) return {}
   const raw = config as Record<string, unknown>
   const transport = raw.transport === 'stdio' || raw.transport === 'streamable-http'
-    ? raw.transport as McpTransport
+    ? raw.transport
     : undefined
   const serverName = typeof raw.serverName === 'string' ? raw.serverName : undefined
   const command = typeof raw.command === 'string' ? raw.command : undefined

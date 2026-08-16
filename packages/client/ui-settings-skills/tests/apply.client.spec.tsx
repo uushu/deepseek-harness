@@ -11,6 +11,7 @@ import { SkillsConfigTab } from '../src/client/SkillsConfigTab.tsx'
 import { SkillsListTab } from '../src/client/SkillsListTab.tsx'
 import { SkillsSettingsSection } from '../src/client/SkillsSettingsSection.tsx'
 import type { SkillsSettingsSectionInjected } from '../src/client/SkillsSettingsSection.tsx'
+import type { SkillsConfigTabInjected } from '../src/client/SkillsConfigTab.tsx'
 import type { SkillsListTabInjected } from '../src/client/SkillsListTab.tsx'
 
 usePinnedBrowserLanguages('zh-CN')
@@ -21,7 +22,7 @@ function sessionsWith(current: string | undefined) {
   return { list: { getSnapshot: () => ({ current }) } }
 }
 
-async function bench(current: string | undefined = undefined) {
+async function bench(current?: string) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const locale = new LocaleRuntime(ctx)
@@ -70,9 +71,39 @@ describe('ui-settings-skills browser plugin', () => {
     expect(resolveSlotLabel(tabs[1]!.options.label)).toBe('技能配置')
     expect(b.api.skills.list).not.toHaveBeenCalled()
 
-    const injected = (section.inject as unknown as () => SkillsSettingsSectionInjected)()
-    expect(injected.hooks.tabs.getSnapshot().map(row => row.id)).toEqual(['list', 'config'])
-    expect(b.api.skills.list).not.toHaveBeenCalled()
+    await b.ctx.fiber.dispose()
+  })
+
+  it('injects a live tab projection with cache, subscription, and locale recompute', async () => {
+    const b = await bench('s1')
+    declareRoot(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+
+    const section = b.slots.entries('settings.section')[0]!
+    const sectionFace = (section.inject as unknown as () => SkillsSettingsSectionInjected)()
+    const initialTabs = sectionFace.hooks.tabs.getSnapshot()
+    expect(initialTabs).toEqual([
+      { id: 'list', order: 0, label: '技能列表' },
+      { id: 'config', order: 10, label: '技能配置' },
+    ])
+    // A stable snapshot is cached until the ledger or the locale moves.
+    expect(sectionFace.hooks.tabs.getSnapshot()).toBe(initialTabs)
+
+    const listener = vi.fn()
+    const unsubscribe = sectionFace.hooks.tabs.subscribe(listener)
+    // A contribution without id/order/label exercises the projection defaults.
+    b.slots.register({ name: 'settings.skills.tab', id: 'plain' } as never, () => null)
+    expect(sectionFace.hooks.tabs.getSnapshot()).toEqual([
+      { id: 'list', order: 0, label: '技能列表' },
+      { id: 'plain', order: 0, label: '' },
+      { id: 'config', order: 10, label: '技能配置' },
+    ])
+    await vi.waitFor(() => { expect(listener).toHaveBeenCalled() })
+    unsubscribe()
+
+    // A locale move re-projects labels even when the ledger itself is stable.
+    b.locale.setLocale('en')
+    expect(sectionFace.hooks.tabs.getSnapshot()[0]?.label).toBe('Skill list')
 
     await b.ctx.fiber.dispose()
   })
@@ -81,12 +112,12 @@ describe('ui-settings-skills browser plugin', () => {
     const b = await bench('s1')
     declareRoot(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
+    b.api.skills.list.mockResolvedValue(okSkillList([
+      { name: 'demo', description: 'd', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' },
+    ]))
     const listTab = b.slots.entries('settings.skills.tab')[0]!
     const injected = (listTab.inject as unknown as () => SkillsListTabInjected)()
 
-    b.api.skills.list.mockResolvedValueOnce(okSkillList([
-      { name: 'demo', description: 'd', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' },
-    ]))
     await expect(injected.list()).resolves.toEqual({
       sessionless: false,
       skills: [{ name: 'demo', description: 'd', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' }],
@@ -95,6 +126,15 @@ describe('ui-settings-skills browser plugin', () => {
 
     b.api.skills.list.mockResolvedValueOnce({ result: { ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } } })
     await expect(injected.list()).rejects.toThrow('skills.list failed: REMOTE_ERROR: unavailable')
+
+    // The config tab shares the same catalog face.
+    const configTab = b.slots.entries('settings.skills.tab')[1]!
+    const configInjected = (configTab.inject as unknown as () => SkillsConfigTabInjected)()
+    await expect(configInjected.list()).resolves.toEqual({
+      sessionless: false,
+      skills: [{ name: 'demo', description: 'd', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' }],
+    })
+    expect(b.api.skills.list).toHaveBeenCalledTimes(3)
     await b.ctx.fiber.dispose()
   })
 

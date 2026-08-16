@@ -33,6 +33,7 @@ const SNAPSHOT = {
       reconnect: { enabled: false },
     },
     { entryId: 'mcp-off', serverName: 'off', transport: 'stdio', enabled: false, fiberPhase: null, command: 'node' },
+    { entryId: 'mcp-extra', serverName: 'extra', transport: 'stdio', enabled: true, fiberPhase: null, command: 'node', failOnStartupError: false, reconnect: { enabled: true, initialDelayMs: 200 } },
     { entryId: 'mcp-malformed', enabled: true, fiberPhase: 'loading' },
   ],
 } as unknown as Snapshot
@@ -46,12 +47,12 @@ describe('McpConfigTab', () => {
 
     await act(async () => { deferred.resolve(SNAPSHOT) })
     expect(list).toHaveBeenCalledOnce()
-    expect(screen.getAllByRole('listitem')).toHaveLength(4)
-    expect(screen.getAllByText(en.enabledTag)).toHaveLength(3)
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+    expect(screen.getAllByText(en.enabledTag)).toHaveLength(4)
     expect(screen.getByText(en.disabledTag)).toBeTruthy()
-    expect(screen.getAllByText(en.transportStdio)).toHaveLength(2)
+    expect(screen.getAllByText(en.transportStdio)).toHaveLength(3)
     expect(screen.getByText(en.transportHttp)).toBeTruthy()
-    for (const value of ['Mounted', 'Mount failed', 'Loading']) {
+    for (const value of ['Mounted', 'Mount failed', 'Loading', 'Not mounted']) {
       expect(screen.getByRole('img', { name: value })).toBeTruthy()
     }
     // The malformed entry keeps only identity fields and an unparsed title.
@@ -84,7 +85,17 @@ describe('McpConfigTab', () => {
     const disabled = screen.getByRole('button', { name: 'off, stdio process, Disabled' })
     fireEvent.click(disabled)
     expect(screen.queryByText(en.cordis)).toBeNull()
-    expect(screen.queryByRole('img', { name: 'Not mounted' })).toBeNull()
+    // The disabled card itself carries no runtime status dot.
+    expect(view.container.querySelector('[data-mcp-server="mcp-off"] [role="img"]')).toBeNull()
+
+    // A server with partial reconnect settings and startup-failure disabled
+    // renders only the fields that are present.
+    const extra = screen.getByRole('button', { name: 'extra, stdio process, Enabled' })
+    fireEvent.click(extra)
+    expect(screen.getByText(en.failOnStartupError).nextElementSibling?.textContent).toBe(en.disabledTag)
+    expect(screen.getByText(en.initialDelayMs).nextElementSibling?.textContent).toBe('200')
+    expect(screen.queryByText(en.maxDelayMs)).toBeNull()
+    expect(screen.queryByText(en.maxAttempts)).toBeNull()
   })
 
   it('shows a generic failure and retries into the empty state', async () => {
@@ -129,8 +140,8 @@ describe('McpInventoryTab', () => {
     expect(list).toHaveBeenCalledOnce()
     expect(screen.getByRole('searchbox', { name: en.search })).toBeTruthy()
     expect(screen.getByRole('heading', { name: en.inventoryTab })).toBeTruthy()
-    expect(view.container.querySelector('[data-mcp-count]')?.textContent).toBe('4')
-    expect(screen.getAllByRole('listitem')).toHaveLength(4)
+    expect(view.container.querySelector('[data-mcp-count]')?.textContent).toBe('5')
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
     // A missing serverName falls back to the entry id as the row title.
     expect(screen.getByRole('button', { name: 'mcp-malformed, , Enabled' })).toBeTruthy()
 
@@ -142,6 +153,17 @@ describe('McpInventoryTab', () => {
     expect(screen.getByText(en.cordis)).toBeTruthy()
     fireEvent.click(fsCard)
     expect(view.container.querySelector('[data-loader-entry]')).toBeNull()
+
+    // Expanding a config-less row reports the unparsed fallback.
+    const malformed = screen.getByRole('button', { name: 'mcp-malformed, , Enabled' })
+    fireEvent.click(malformed)
+    expect(screen.getByText(en.serverName).nextElementSibling?.textContent).toBe(en.unparsed)
+    fireEvent.click(malformed)
+
+    // A disabled row never shows runtime status.
+    const offCard = screen.getByRole('button', { name: 'off, stdio process, Disabled' })
+    fireEvent.click(offCard)
+    expect(screen.queryByText(en.cordis)).toBeNull()
   })
 
   it('filters by server name, entry id, or transport and clears disclosure on no-match', async () => {
@@ -161,7 +183,7 @@ describe('McpInventoryTab', () => {
     expect(screen.getByText('remote')).toBeTruthy()
 
     fireEvent.change(search, { target: { value: 'stdio' } })
-    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
 
     fireEvent.change(search, { target: { value: 'not-a-server' } })
     expect(screen.queryAllByRole('listitem')).toHaveLength(0)

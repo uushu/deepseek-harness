@@ -11,6 +11,7 @@ import { McpConfigTab } from '../src/client/McpConfigTab.tsx'
 import { McpInventoryTab } from '../src/client/McpInventoryTab.tsx'
 import { McpSettingsSection } from '../src/client/McpSettingsSection.tsx'
 import type { McpSettingsSectionInjected } from '../src/client/McpSettingsSection.tsx'
+import type { McpConfigTabInjected } from '../src/client/McpConfigTab.tsx'
 
 usePinnedBrowserLanguages('zh-CN')
 afterEach(cleanup)
@@ -71,21 +72,47 @@ describe('ui-settings-mcp browser plugin', () => {
     expect(resolveSlotLabel(tabs[1]!.options.label)).toBe('MCP 列表')
     expect(b.list).not.toHaveBeenCalled()
 
-    const injected = (section.inject as unknown as () => McpSettingsSectionInjected)()
-    expect(injected.hooks.tabs.getSnapshot().map(row => row.id)).toEqual(['config', 'inventory'])
-    expect(b.list).not.toHaveBeenCalled()
-
     await b.ctx.fiber.dispose()
   })
 
-  it('fails loud when the Remote rejects', async () => {
+  it('injects a live tab projection with cache, subscription, and locale recompute', async () => {
     const b = await bench()
     declareRoot(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
-    const config = b.slots.entries('settings.mcp.tab')[0]!
-    const injected = (config.inject as unknown as () => { list: () => Promise<unknown> })()
+
+    const section = b.slots.entries('settings.section')[0]!
+    const sectionFace = (section.inject as unknown as () => McpSettingsSectionInjected)()
+    const initialTabs = sectionFace.hooks.tabs.getSnapshot()
+    expect(initialTabs).toEqual([
+      { id: 'config', order: 0, label: 'MCP 配置' },
+      { id: 'inventory', order: 10, label: 'MCP 列表' },
+    ])
+    // A stable snapshot is cached until the ledger or the locale moves.
+    expect(sectionFace.hooks.tabs.getSnapshot()).toBe(initialTabs)
+
+    const listener = vi.fn()
+    const unsubscribe = sectionFace.hooks.tabs.subscribe(listener)
+    // A contribution without id/order/label exercises the projection defaults.
+    b.slots.register({ name: 'settings.mcp.tab', id: 'plain' } as never, () => null)
+    expect(sectionFace.hooks.tabs.getSnapshot()).toEqual([
+      { id: 'config', order: 0, label: 'MCP 配置' },
+      { id: 'plain', order: 0, label: '' },
+      { id: 'inventory', order: 10, label: 'MCP 列表' },
+    ])
+    await vi.waitFor(() => { expect(listener).toHaveBeenCalled() })
+    unsubscribe()
+
+    // A locale move re-projects labels even when the ledger itself is stable.
+    b.locale.setLocale('en')
+    expect(sectionFace.hooks.tabs.getSnapshot()[0]?.label).toBe('MCP configuration')
+
+    // Both tab faces share the Remote-backed list; success and failure paths.
+    const configFace = (tabsOf(b)[0]!.inject as unknown as () => McpConfigTabInjected)()
+    await expect(configFace.list()).resolves.toEqual(EMPTY)
     b.list.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
-    await expect(injected.list()).rejects.toThrow('mcpInventory.list failed: REMOTE_ERROR: unavailable')
+    await expect(configFace.list()).rejects.toThrow('mcpInventory.list failed: REMOTE_ERROR: unavailable')
+    expect(b.list).toHaveBeenCalledTimes(2)
+
     await b.ctx.fiber.dispose()
   })
 
@@ -113,3 +140,7 @@ describe('ui-settings-mcp browser plugin', () => {
     await b.ctx.fiber.dispose()
   })
 })
+
+function tabsOf(b: Awaited<ReturnType<typeof bench>>) {
+  return b.slots.entries('settings.mcp.tab')
+}
