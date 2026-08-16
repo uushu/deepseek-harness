@@ -50,3 +50,46 @@ export interface McpServerView {
 export interface McpInventorySnapshot {
   readonly entries: readonly McpServerView[]
 }
+
+/** Reconnect policy a client may submit for one MCP server. */
+export interface McpReconnectInput {
+  readonly enabled: boolean
+  readonly initialDelayMs?: number
+  readonly maxDelayMs?: number
+  readonly maxAttempts?: number
+}
+
+/** stdio transport config a client submits when creating or editing a server. */
+export interface McpStdioConfigInput {
+  readonly transport: 'stdio'
+  /** Stable local namespace; must match `[A-Za-z0-9_-]{1,32}` and be unique. */
+  readonly serverName: string
+  readonly command: string
+  readonly args?: readonly string[]
+  readonly env?: Readonly<Record<string, string>>
+  readonly cwd?: string
+  readonly toolCallTimeoutMs?: number
+  readonly failOnStartupError?: boolean
+  readonly reconnect?: McpReconnectInput
+}
+
+/** streamable-http transport config a client submits when creating or editing a server. */
+export interface McpHttpConfigInput {
+  readonly transport: 'streamable-http'
+  /** Stable local namespace; must match `[A-Za-z0-9_-]{1,32}` and be unique. */
+  readonly serverName: string
+  readonly url: string
+  readonly headers?: Readonly<Record<string, string>>
+  readonly toolCallTimeoutMs?: number
+  readonly failOnStartupError?: boolean
+  readonly reconnect?: McpReconnectInput
+}
+
+/** Configuration a client submits to create or edit one MCP server. */
+export type McpServerConfigInput = McpStdioConfigInput | McpHttpConfigInput
+
+/** Result of removing one MCP server. */
+export interface McpRemoveResult {
+  /** Whether a matching server entry existed in the user patch layer. */
+  readonly removed: boolean
+}

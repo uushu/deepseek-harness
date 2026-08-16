@@ -4,9 +4,10 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, rename, rm, stat } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import { stringify as stringifyYaml } from 'yaml'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
@@ -603,6 +604,85 @@ async function buildModelCatalog(ctx: Context): Promise<{
 /** Wrap an error result echoing the request's rpcId. */
 function err<T>(request: RpcRequest<unknown>, error: RpcError): RpcResponse<T> {
   return { rpcId: request.rpcId, result: { ok: false, error } }
+}
+
+/** Valid project skill names: kebab-case, lowercase, no path separators. */
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+/** Validate a client-submitted project skill write; returns the rejection message or undefined. */
+function validateSkillWrite(skill: unknown): string | undefined {
+  if (typeof skill !== 'object' || skill === null) return 'skill must be an object'
+  const record = skill as Record<string, unknown>
+  const name = typeof record.name === 'string' ? record.name : ''
+  if (!SKILL_NAME.test(name)) return `invalid skill name "${name}"`
+  if (typeof record.description !== 'string' || record.description.length === 0) {
+    return 'description is required'
+  }
+  if (typeof record.content !== 'string') return 'content must be a string'
+  if (record.whenToUse !== undefined && typeof record.whenToUse !== 'string') {
+    return 'whenToUse must be a string'
+  }
+  if (typeof record.modelInvocable !== 'boolean') return 'modelInvocable must be a boolean'
+  return undefined
+}
+
+/** Write one skill file body (utf8, parent directory already created). */
+async function writeSkillFile(path: string, body: string): Promise<void> {
+  await writeFile(path, body, { encoding: 'utf8' })
+}
+
+/** Read one skill file, or undefined when it does not exist. */
+async function readSkillFile(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, { encoding: 'utf8' })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
+  }
+}
+
+/** Strip a `---`-fenced frontmatter block, returning the markdown body. */
+function skillBody(raw: string): string {
+  if (!raw.startsWith('---\n')) return raw
+  let lineStart = 4
+  while (lineStart <= raw.length) {
+    const nextNewline = raw.indexOf('\n', lineStart)
+    const lineEnd = nextNewline < 0 ? raw.length : nextNewline
+    if (raw.slice(lineStart, lineEnd).replace(/\r$/, '') === '---') {
+      return nextNewline < 0 ? '' : raw.slice(nextNewline + 1)
+    }
+    if (nextNewline < 0) return raw
+    lineStart = nextNewline + 1
+  }
+  return raw
+}
+
+/** Resolve the session's project cwd, or the refusal when it cannot serve. */
+function sessionCwdFor<T>(
+  request: RpcRequest<{ sessionId: SessionId }>,
+  session: Session | undefined,
+): { ok: true; cwd: string } | { ok: false; refusal: RpcResponse<T> } {
+  if (session === undefined) {
+    return {
+      ok: false,
+      refusal: err(request, {
+        code: 'session-not-found',
+        message: `session "${request.payload.sessionId}" not found (not attached)`,
+        details: { sessionId: request.payload.sessionId },
+      }),
+    }
+  }
+  if (session.header.cwd === undefined) {
+    return {
+      ok: false,
+      refusal: err(request, {
+        code: 'internal',
+        message: `session "${request.payload.sessionId}" has no project cwd`,
+        details: {},
+      }),
+    }
+  }
+  return { ok: true, cwd: session.header.cwd }
 }
 
 /**
@@ -3905,6 +3985,86 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })
         } catch (error: unknown) {
           return err(request, { code: 'internal', message: `skill listing failed: ${String(error)}`, details: {} })
+        }
+      },
+
+      // Project skill-file writes: the session address resolves the canonical
+      // project root, the skill name is constrained to kebab-case (no path
+      // separators), and the file lands under `.dsh/skills` where the
+      // filesystem provider's watcher publishes it without any reload.
+      async write(request) {
+        const session = ctx.sessions.get(request.payload.sessionId)
+        const resolved = sessionCwdFor<{ name: string }>(request, session)
+        if (!resolved.ok) return resolved.refusal
+        const cwd = resolved.cwd
+        const { skill } = request.payload
+        const invalid = validateSkillWrite(skill)
+        if (invalid !== undefined) {
+          return err(request, { code: 'invalid-skill', message: invalid, details: { name: skill.name } })
+        }
+        const directory = join(cwd, '.dsh', 'skills', skill.name)
+        const file = join(directory, 'SKILL.md')
+        try {
+          const frontmatter = {
+            name: skill.name,
+            description: skill.description,
+            ...skill.whenToUse === undefined || skill.whenToUse.length === 0 ? {} : { whenToUse: skill.whenToUse },
+            ...skill.modelInvocable ? {} : { 'disable-model-invocation': true },
+          }
+          const body = `---\n${stringifyYaml(frontmatter)}---\n${skill.content}`
+          await mkdir(directory, { recursive: true })
+          const temporary = `${file}.tmp`
+          await writeSkillFile(temporary, body)
+          await rename(temporary, file)
+          return ok(request, { name: skill.name })
+        } catch (error: unknown) {
+          return err(request, { code: 'internal', message: `skill write failed: ${String(error)}`, details: {} })
+        }
+      },
+
+      async read(request) {
+        const session = ctx.sessions.get(request.payload.sessionId)
+        const resolved = sessionCwdFor<{ content: string }>(request, session)
+        if (!resolved.ok) return resolved.refusal
+        const cwd = resolved.cwd
+        const { name } = request.payload
+        if (!SKILL_NAME.test(name)) {
+          return err(request, { code: 'invalid-skill', message: `invalid skill name "${name}"`, details: { name } })
+        }
+        const file = join(cwd, '.dsh', 'skills', name, 'SKILL.md')
+        try {
+          const raw = await readSkillFile(file)
+          if (raw === undefined) {
+            return err(request, { code: 'skill-not-found', message: `no skill file at ${file}`, details: { name } })
+          }
+          return ok(request, { content: skillBody(raw) })
+        } catch (error: unknown) {
+          return err(request, { code: 'internal', message: `skill read failed: ${String(error)}`, details: {} })
+        }
+      },
+
+      async remove(request) {
+        const session = ctx.sessions.get(request.payload.sessionId)
+        const resolved = sessionCwdFor<{ removed: boolean }>(request, session)
+        if (!resolved.ok) return resolved.refusal
+        const cwd = resolved.cwd
+        const { name } = request.payload
+        if (!SKILL_NAME.test(name)) {
+          return err(request, { code: 'invalid-skill', message: `invalid skill name "${name}"`, details: { name } })
+        }
+        const file = join(cwd, '.dsh', 'skills', name, 'SKILL.md')
+        try {
+          let removed = true
+          try {
+            await stat(file)
+          } catch (error: unknown) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') removed = false
+            else throw error
+          }
+          if (removed) await rm(file, { force: true })
+          return ok(request, { removed })
+        } catch (error: unknown) {
+          return err(request, { code: 'internal', message: `skill remove failed: ${String(error)}`, details: {} })
         }
       },
     },

@@ -110,6 +110,10 @@ export interface RpcErrorDetailsMap {
   'subagent-not-resumable': { childSessionId: SessionId }
   'subagent-unauthorized': { childSessionId: SessionId }
   'subagent-delivery-unavailable': { childSessionId: SessionId }
+  /** A project skill write or removal was refused; the message names the problem. */
+  'invalid-skill': { name: string }
+  /** A project skill file does not exist at the expected location. */
+  'skill-not-found': { name: string }
   'internal': {}
 }
 

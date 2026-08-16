@@ -2955,6 +2955,21 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           ],
         })
       },
+      write: (request) => {
+        const missing = requireSession(request)
+        if (missing !== undefined) return missing
+        return ok(request, { name: request.payload.skill.name })
+      },
+      read: (request) => {
+        const missing = requireSession(request)
+        if (missing !== undefined) return missing
+        return ok(request, { content: 'fixture skill body' })
+      },
+      remove: (request) => {
+        const missing = requireSession(request)
+        if (missing !== undefined) return missing
+        return ok(request, { removed: true })
+      },
     },
     goals: {
       // Compatibility face only: old API Proxy payloads and acknowledgements
@@ -3281,6 +3296,9 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'workspace.archiveSession': return this.api.workspace.archiveSession(request)
       case 'workspace.unarchiveSession': return this.api.workspace.unarchiveSession(request)
       case 'skill.list': return this.api.skills.list(request)
+      case 'skill.write': return this.api.skills.write(request)
+      case 'skill.read': return this.api.skills.read(request)
+      case 'skill.remove': return this.api.skills.remove(request)
       case 'agentPreset.list': return this.api.agentPresets.list(request)
       case 'agentPreset.select': return this.api.agentPresets.select(request)
       case 'agentPreset.read': return this.api.agentPresets.read(request)

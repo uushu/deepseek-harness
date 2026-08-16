@@ -47,7 +47,7 @@ import {
   workspaceRenameValueSchema,
   workspaceUnarchiveSessionValueSchema,
 } from '../api/workspace.schema.ts'
-import { skillListValueSchema } from '../api/skills.schema.ts'
+import { skillListValueSchema, skillReadValueSchema, skillRemoveValueSchema, skillWriteValueSchema } from '../api/skills.schema.ts'
 import {
   agentPresetCopyValueSchema, agentPresetListValueSchema, agentPresetOpenDocumentValueSchema,
   agentPresetReadValueSchema, agentPresetRemoveValueSchema, agentPresetSelectValueSchema,
@@ -137,6 +137,9 @@ export interface IApiClient {
   }
   skills: {
     list(payload: RequestPayload<'skill.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.list'>>>
+    write(payload: RequestPayload<'skill.write'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.write'>>>
+    read(payload: RequestPayload<'skill.read'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.read'>>>
+    remove(payload: RequestPayload<'skill.remove'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.remove'>>>
   }
   agentPresets: {
     list(payload: RequestPayload<'agentPreset.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.list'>>>
@@ -221,6 +224,9 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'workspace.archiveSession': workspaceArchiveSessionValueSchema,
   'workspace.unarchiveSession': workspaceUnarchiveSessionValueSchema,
   'skill.list': skillListValueSchema,
+  'skill.write': skillWriteValueSchema,
+  'skill.read': skillReadValueSchema,
+  'skill.remove': skillRemoveValueSchema,
   'agentPreset.list': agentPresetListValueSchema,
   'agentPreset.select': agentPresetSelectValueSchema,
   'agentPreset.read': agentPresetReadValueSchema,
@@ -485,6 +491,9 @@ export abstract class AbstractApiClient implements IApiClient {
 
   readonly skills: IApiClient['skills'] = {
     list: (payload, signal) => this.callUnary('skill.list', payload, signal),
+    write: (payload, signal) => this.callUnary('skill.write', payload, signal),
+    read: (payload, signal) => this.callUnary('skill.read', payload, signal),
+    remove: (payload, signal) => this.callUnary('skill.remove', payload, signal),
   }
 
   // Annotated like every sibling, and load-bearing rather than cosmetic:

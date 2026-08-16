@@ -1,14 +1,27 @@
-/** Read-only projection of the configured MCP servers (Loader mcp-client entries). */
+/**
+ * Projection and write side of the configured MCP servers: reads the Loader's
+ * mcp-client entries for the read-only views, and persists user edits to the
+ * home-level patch layer (`$DSH_HOME/cordis.patch.yml`) where the launcher's
+ * config-only HMR picks them up and restarts the affected fibers.
+ *
+ * The write method is named `removeServer` (not `remove`) because the typert
+ * Remote namespace service itself exposes `remove`, so `mcpInventory/remove`
+ * would collide with it at client-remote mount time.
+ */
 
 import type { Context, FiberState } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 // Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
+import { validateServerConfig } from './config.ts'
+import { readHomePatchEntries, writeHomePatchEntries } from './patch-store.ts'
 import type {
   McpEntryId,
   McpFiberPhase,
   McpInventorySnapshot,
+  McpRemoveResult,
+  McpServerConfigInput,
   McpServerView,
 } from './types.ts'
 
@@ -131,6 +144,53 @@ function toView(entry: {
   }
 }
 
+/**
+ * Merge a submitted secret map against the stored one: an empty submitted
+ * value means "keep the old value" (or drop the key when none exists), so the
+ * editor can show configured keys redacted without forcing a re-enter.
+ */
+function mergeSecretMap(oldMap: unknown, submitted: Record<string, string>): Record<string, string> | undefined {
+  const oldRecord = typeof oldMap === 'object' && oldMap !== null
+    ? oldMap as Record<string, unknown>
+    : {}
+  const merged: Record<string, string> = {}
+  for (const [key, value] of Object.entries(submitted)) {
+    if (value !== '') {
+      merged[key] = value
+      continue
+    }
+    const previous = oldRecord[key]
+    if (typeof previous === 'string') merged[key] = previous
+  }
+  return Object.keys(merged).length === 0 ? undefined : merged
+}
+
+/** Resolve one validated config against the stored entry, merging kept secrets. */
+function resolveStoredConfig(config: McpServerConfigInput, previous: unknown): McpServerConfigInput {
+  if (config.transport === 'stdio') {
+    // The raw env carries redacted placeholders that must not be persisted
+    // verbatim: only the merge result (or nothing) reaches the stored entry.
+    const { env, ...rest } = config
+    const merged = env === undefined ? undefined : mergeSecretMap(
+      (previous as Record<string, unknown> | undefined)?.env,
+      env,
+    )
+    return {
+      ...rest,
+      ...merged === undefined ? {} : { env: merged },
+    }
+  }
+  const { headers, ...rest } = config
+  const mergedHeaders = headers === undefined ? undefined : mergeSecretMap(
+    (previous as Record<string, unknown> | undefined)?.headers,
+    headers,
+  )
+  return {
+    ...rest,
+    ...mergedHeaders === undefined ? {} : { headers: mergedHeaders },
+  }
+}
+
 /** Remote-only service exposing the Loader's configured MCP server entries. */
 export class McpInventoryGateway extends TypertRemoteService {
   static inject = ['loader']
@@ -154,6 +214,68 @@ export class McpInventoryGateway extends TypertRemoteService {
       entries.push(toView(entry))
     }
     return { entries }
+  }
+
+  /**
+   * Create or replace one MCP server in the home-level user patch layer. The
+   * launcher's config HMR restarts the mcp-client fiber with the new config,
+   * so a persisted edit takes effect without a process restart. Secrets the
+   * client submits (env/header values) are persisted verbatim but never appear
+   * in later read views; an empty submitted value keeps the stored one.
+   * @param input - validated server config (see {@link validateServerConfig}).
+   * @returns the projected view of the persisted server entry.
+   */
+  @Remote('upsert')
+  upsert(input: McpServerConfigInput): McpServerView {
+    const config = validateServerConfig(input)
+    const entries = readHomePatchEntries()
+    const existing = entries.find(entry =>
+      isMcpClientEntry(entry.name)
+      && (entry.config as Record<string, unknown> | undefined)?.serverName === config.serverName)
+    if (existing !== undefined) {
+      const index = entries.indexOf(existing)
+      const stored = resolveStoredConfig(config, existing.config)
+      entries[index] = { id: existing.id, name: existing.name, config: stored }
+      writeHomePatchEntries(entries)
+      return {
+        entryId: mcpEntryId(existing.id),
+        enabled: true,
+        fiberPhase: null,
+        ...projectConfig(stored),
+      }
+    }
+    const id = `mcp-${config.serverName}`
+    if (entries.some(entry => entry.id === id && !isMcpClientEntry(entry.name))) {
+      throw new Error(`patch entry id "${id}" is already used by a non-MCP plugin`)
+    }
+    const stored = resolveStoredConfig(config, undefined)
+    entries.push({ id, name: MCP_CLIENT_MODULE, config: stored })
+    writeHomePatchEntries(entries)
+    return {
+      entryId: mcpEntryId(id),
+      enabled: true,
+      fiberPhase: null,
+      ...projectConfig(stored),
+    }
+  }
+
+  /**
+   * Remove one MCP server from the home-level user patch layer. The config HMR
+   * then unloads its fiber and unregisters the server's tools. Named
+   * `removeServer` because `remove` collides with the typert Remote namespace
+   * service's own method.
+   * @param serverName - the server's stable local namespace.
+   * @returns whether a matching server entry existed.
+   */
+  @Remote('removeServer')
+  removeServer(serverName: string): McpRemoveResult {
+    const entries = readHomePatchEntries()
+    const next = entries.filter(entry =>
+      !(isMcpClientEntry(entry.name)
+        && (entry.config as Record<string, unknown> | undefined)?.serverName === serverName))
+    const removed = next.length !== entries.length
+    writeHomePatchEntries(next)
+    return { removed }
   }
 }
 

@@ -10,6 +10,9 @@ export type McpSettingsLocaleKey =
   | 'serverName' | 'command' | 'args' | 'url' | 'cwd' | 'envKeys' | 'headerKeys'
   | 'toolCallTimeoutMs' | 'failOnStartupError' | 'reconnect' | 'reconnectDisabled'
   | 'initialDelayMs' | 'maxDelayMs' | 'maxAttempts'
+  | 'addServer' | 'save' | 'saving' | 'deleteServer' | 'cancel' | 'saved'
+  | 'deleteHint' | 'invalidServer' | 'addRow' | 'removeRow' | 'secretPlaceholder'
+  | 'transportLabel' | 'reconnectDelays' | 'newServer'
 
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
@@ -52,6 +55,20 @@ export const zh = {
   initialDelayMs: '初始延迟（毫秒）',
   maxDelayMs: '最大延迟（毫秒）',
   maxAttempts: '最大重试次数',
+  addServer: '添加 MCP 服务器',
+  save: '保存',
+  saving: '保存中…',
+  deleteServer: '删除',
+  cancel: '取消',
+  saved: '已保存，配置热重载后生效。',
+  deleteHint: '删除后该服务器的工具会立即卸载。',
+  invalidServer: '请填写服务器名和命令（或端点 URL）。',
+  addRow: '添加',
+  removeRow: '移除',
+  secretPlaceholder: '已设置（输入以覆盖）',
+  transportLabel: '传输类型',
+  reconnectDelays: '重连延迟',
+  newServer: '新建服务器',
 } satisfies Record<string, string>
 
 /** English dictionary checked against the Chinese key set. */
@@ -95,4 +112,18 @@ export const en: Record<McpSettingsLocaleKey, string> = {
   initialDelayMs: 'Initial delay (ms)',
   maxDelayMs: 'Max delay (ms)',
   maxAttempts: 'Max attempts',
+  addServer: 'Add MCP server',
+  save: 'Save',
+  saving: 'Saving…',
+  deleteServer: 'Delete',
+  cancel: 'Cancel',
+  saved: 'Saved; the config hot-reload is taking effect.',
+  deleteHint: 'Removing the server unloads its tools.',
+  invalidServer: 'Enter a server name and a command (or endpoint URL).',
+  addRow: 'Add',
+  removeRow: 'Remove',
+  secretPlaceholder: 'Set (type to replace)',
+  transportLabel: 'Transport',
+  reconnectDelays: 'Reconnect delays',
+  newServer: 'New server',
 }

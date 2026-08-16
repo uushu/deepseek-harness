@@ -53,7 +53,7 @@ const STDIO_CONFIG = {
 }
 
 describe('McpInventoryGateway', () => {
-  it('publishes one direct list method under the mcpInventory namespace', async () => {
+  it('publishes list, upsert, and removeServer under the mcpInventory namespace', async () => {
     const { inventory } = await harness()
     expect(inventory.typertRemote).toMatchObject({
       serviceKey: 'mcpInventory',
@@ -61,6 +61,8 @@ describe('McpInventoryGateway', () => {
     })
     expect(remoteMethods(inventory)).toEqual([
       { method: 'list', invocation: { kind: 'direct' } },
+      { method: 'upsert', invocation: { kind: 'direct' } },
+      { method: 'removeServer', invocation: { kind: 'direct' } },
     ])
   })
 

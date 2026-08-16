@@ -6,7 +6,7 @@
  * agent presets, so editing them is a separate, write-path milestone.
  */
 
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import type { ConnectionHandle, SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale) and the
@@ -14,7 +14,11 @@ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import { SkillsConfigTab, type SkillsConfigTabInjected } from './SkillsConfigTab.tsx'
+import {
+  SkillsConfigTab,
+  type SkillWriteInput,
+  type SkillsConfigTabInjected,
+} from './SkillsConfigTab.tsx'
 import {
   SkillsListTab,
   type SkillListResult,
@@ -29,7 +33,7 @@ import { en, zh, type SkillsSettingsLocaleKey } from './locales.ts'
 
 export type { SkillsSettingsSectionInjected, SkillsSettingsSectionProps } from './SkillsSettingsSection.tsx'
 export type { SkillsListTabInjected, SkillsListTabProps, SkillListResult } from './SkillsListTab.tsx'
-export type { SkillsConfigTabInjected, SkillsConfigTabProps, SkillSourceGroup } from './SkillsConfigTab.tsx'
+export type { SkillsConfigTabInjected, SkillsConfigTabProps, SkillSourceGroup, SkillWriteInput } from './SkillsConfigTab.tsx'
 export { groupSkills } from './SkillsConfigTab.tsx'
 export type { SkillsSettingsLocaleKey } from './locales.ts'
 
@@ -65,8 +69,37 @@ export function apply(ctx: ClientContext): void {
     }
     return { sessionless: false, skills: response.result.value.skills }
   }
+  const withSession = async <T>(call: (sessionId: SessionId) => Promise<T>): Promise<T> => {
+    const sessionId = ctx.sessions.list.getSnapshot().current
+    if (sessionId === undefined) throw new Error('skills require an open session')
+    return await call(sessionId)
+  }
+  const read = (name: string): Promise<string> =>
+    withSession(async (sessionId) => {
+      const response = await api.skills.read({ sessionId, name })
+      if (!response.result.ok) {
+        throw new Error(`skills.read failed: ${response.result.error.code}: ${response.result.error.message}`)
+      }
+      return response.result.value.content
+    })
+  const write = (skill: SkillWriteInput): Promise<{ name: string }> =>
+    withSession(async (sessionId) => {
+      const response = await api.skills.write({ sessionId, skill })
+      if (!response.result.ok) {
+        throw new Error(`skills.write failed: ${response.result.error.code}: ${response.result.error.message}`)
+      }
+      return response.result.value
+    })
+  const remove = (name: string): Promise<{ removed: boolean }> =>
+    withSession(async (sessionId) => {
+      const response = await api.skills.remove({ sessionId, name })
+      if (!response.result.ok) {
+        throw new Error(`skills.remove failed: ${response.result.error.code}: ${response.result.error.message}`)
+      }
+      return response.result.value
+    })
   const listInjected = (): SkillsListTabInjected => ({ list })
-  const configInjected = (): SkillsConfigTabInjected => ({ list })
+  const configInjected = (): SkillsConfigTabInjected => ({ list, read, write, remove })
 
   let tabsVersion = -1
   let tabsRevision = -1
@@ -116,21 +149,22 @@ export function apply(ctx: ClientContext): void {
   }, SkillsSettingsSection))
 
   ctx.slots.inject('settings.skills.tab', function* () {
-    yield ctx.slots.register({
-      name: 'settings.skills.tab',
-      id: 'list',
-      order: 0,
-      label: () => t('listTab'),
-      locale: NS,
-      inject: listInjected,
-    }, SkillsListTab)
+    // The configuration tab comes first, mirroring the MCP section.
     yield ctx.slots.register({
       name: 'settings.skills.tab',
       id: 'config',
-      order: 10,
+      order: 0,
       label: () => t('configTab'),
       locale: NS,
       inject: configInjected,
     }, SkillsConfigTab)
+    yield ctx.slots.register({
+      name: 'settings.skills.tab',
+      id: 'list',
+      order: 10,
+      label: () => t('listTab'),
+      locale: NS,
+      inject: listInjected,
+    }, SkillsListTab)
   })
 }

@@ -1,4 +1,4 @@
-/* MCP configuration tab: expandable resolved-config cards. */
+/* MCP configuration tab: expandable editable server cards. */
 
 .section {
   display: flex;
@@ -33,6 +33,32 @@
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+}
+
+.catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.addButton:hover {
+  border-color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-state-business-primary);
 }
 
 .cards {
@@ -154,19 +180,165 @@
   overflow-wrap: anywhere;
 }
 
-.details {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 6px 16px;
+.notice {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
+  color: var(--dsw-alias-state-success);
 }
 
-.details dt {
+.invalid {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-state-danger);
+}
+
+.deleteHint {
+  margin: 0;
+  font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
 }
 
-.details dd {
-  margin: 0;
-  overflow-wrap: anywhere;
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.fieldInput {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.fieldInput:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.checkboxRow input {
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.transportRow {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.transportOption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.transportOption input {
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.secretRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.secretRow {
+  display: flex;
+  gap: 6px;
+}
+
+.secretKey,
+.secretValue {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.rowButton {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.reconnectDelays {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 2px solid var(--dsw-alias-border-l2);
+  padding-left: 10px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.primaryButton,
+.dangerButton,
+.secondaryButton {
+  border-radius: 6px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: 1px solid var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-on-accent, var(--dsw-alias-label-primary));
+}
+
+.dangerButton {
+  border: 1px solid var(--dsw-alias-state-danger);
+  background: transparent;
+  color: var(--dsw-alias-state-danger);
+}
+
+.secondaryButton {
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+}
+
+.primaryButton:disabled,
+.dangerButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

@@ -98,7 +98,13 @@ function scriptedApi(overrides: {
       unarchiveSession: r => ok(r, { archivedSessionIds: [] }),
       ...overrides.workspace,
     },
-    skills: { list: r => ok(r, { skills: [] }), ...overrides.skills },
+    skills: {
+      list: r => ok(r, { skills: [] }),
+      write: r => ok(r, { name: r.payload.skill.name }),
+      read: r => ok(r, { content: 'body' }),
+      remove: r => ok(r, { removed: true }),
+      ...overrides.skills,
+    },
     agentPresets: {
       list: r => ok(r, { presets: [], authorable: false, hasDocument: false }),
       select: r => ok(r, { agentPreset: r.payload.agentPreset }),
@@ -259,6 +265,34 @@ describe('unary round trip', () => {
     // conversation has started, and it can only know which by id.
     const selected = await c.agentPresets.select({ sessionId: sid('s1'), agentPreset: 'standard' })
     expect(selected.result).toEqual({ ok: true, value: { agentPreset: 'standard' } })
+  })
+
+  it('round-trips the recoverable-delete domain through the wire', async () => {
+    const c = client(scriptedApi())
+    expect((await c.sessions.delete({ sessionId: sid('s1') })).result)
+      .toEqual({ ok: true, value: { deleted: true } })
+    expect((await c.sessions.trash({ sessionId: sid('s1') })).result)
+      .toEqual({ ok: true, value: { trashed: true } })
+    expect((await c.sessions.restore({ sessionId: sid('s1') })).result)
+      .toEqual({ ok: true, value: { restored: true } })
+    expect((await c.sessions.purge({ sessionId: sid('s1') })).result)
+      .toEqual({ ok: true, value: { purged: true } })
+    expect((await c.sessions.listTrashed({})).result).toEqual({ ok: true, value: { items: [] } })
+    expect((await c.sessions.trashHistory({ sessionId: sid('s1') })).result)
+      .toEqual({ ok: true, value: { events: [], hasMore: false } })
+  })
+
+  it('round-trips the skill write/read/remove verbs through the wire', async () => {
+    const c = client(scriptedApi())
+    const written = await c.skills.write({
+      sessionId: sid('s1'),
+      skill: { name: 'demo', description: 'd', modelInvocable: true, content: 'body' },
+    })
+    expect(written.result).toEqual({ ok: true, value: { name: 'demo' } })
+    const read = await c.skills.read({ sessionId: sid('s1'), name: 'demo' })
+    expect(read.result).toEqual({ ok: true, value: { content: 'body' } })
+    const removed = await c.skills.remove({ sessionId: sid('s1'), name: 'demo' })
+    expect(removed.result).toEqual({ ok: true, value: { removed: true } })
   })
 
   it('passes business errors through as 200 + err result, not a throw', async () => {
@@ -443,6 +477,8 @@ describe('workspace domain round trip', () => {
     if (created.result.ok) expect(created.result.value.created).toBe(true)
     const archivedResponse = await c.workspace.archiveSession({ sessionId: 's-arch' as never })
     expect(archivedResponse.result).toEqual({ ok: true, value: { archivedSessionIds: ['s-arch'] } })
+    const unarchived = await c.workspace.unarchiveSession({ sessionId: 's-arch' as never })
+    expect(unarchived.result).toEqual({ ok: true, value: { archivedSessionIds: [] } })
   })
 
   it('rejects a pathless create payload at the handler schema', async () => {
@@ -763,6 +799,7 @@ describe('config unary surface', () => {
         providers: record('llm.providers', r => ok(r, { providers: [providerRow] })),
         models: record('llm.models', r => ok(r, { groups: [group], failures: [] })),
         discoverModels: record('llm.discoverModels', r => ok(r, { models: [{ id: 'acme-large', contextWindow: 65536 }] })),
+        balance: record('llm.balance', r => ok(r, { balance: null })),
       },
     })
     const c = client(api)
@@ -795,11 +832,13 @@ describe('config unary surface', () => {
       apiKey: 'probe-key',
     })
     expect(discovered.result).toEqual({ ok: true, value: { models: [{ id: 'acme-large', contextWindow: 65536 }] } })
+    const balance = await c.llm.balance({})
+    expect(balance.result).toEqual({ ok: true, value: { balance: null } })
 
     expect(seen.map(call => call.method)).toEqual([
       'settings.describe', 'settings.openDocument', 'settings.update', 'settings.replace', 'settings.mutate',
       'credentials.describe', 'credentials.set', 'credentials.unset',
-      'llm.providers', 'llm.models', 'llm.discoverModels',
+      'llm.providers', 'llm.models', 'llm.discoverModels', 'llm.balance',
     ])
     expect(seen[2]?.payload).toEqual({ ns: 'llm-deepseek', patch: { baseURL: 'https://next' } })
     expect(seen[4]?.payload)

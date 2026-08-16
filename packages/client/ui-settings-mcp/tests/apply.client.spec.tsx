@@ -12,6 +12,7 @@ import { McpInventoryTab } from '../src/client/McpInventoryTab.tsx'
 import { McpSettingsSection } from '../src/client/McpSettingsSection.tsx'
 import type { McpSettingsSectionInjected } from '../src/client/McpSettingsSection.tsx'
 import type { McpConfigTabInjected } from '../src/client/McpConfigTab.tsx'
+import type { McpInventoryTabInjected } from '../src/client/McpInventoryTab.tsx'
 
 usePinnedBrowserLanguages('zh-CN')
 afterEach(cleanup)
@@ -19,6 +20,14 @@ afterEach(cleanup)
 const EMPTY = { entries: [] }
 type ListResult =
   | { readonly ok: true; readonly value: typeof EMPTY }
+  | { readonly ok: false; readonly error: { readonly code: string; readonly message: string } }
+
+type WriteResult =
+  | { readonly ok: true; readonly value: { entryId: string; serverName: string; transport: 'stdio'; enabled: true; fiberPhase: null } }
+  | { readonly ok: false; readonly error: { readonly code: string; readonly message: string } }
+
+type RemoveResult =
+  | { readonly ok: true; readonly value: { removed: boolean } }
   | { readonly ok: false; readonly error: { readonly code: string; readonly message: string } }
 
 async function bench() {
@@ -34,8 +43,12 @@ async function bench() {
   new RemoteService(ctx)
   const list = vi.fn<() => Promise<ListResult>>()
     .mockResolvedValue({ ok: true, value: EMPTY })
-  ctx.provide('remote.mcpInventory', { list })
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, list }
+  const upsert = vi.fn<() => Promise<WriteResult>>()
+    .mockResolvedValue({ ok: true, value: { entryId: 'mcp-fs', serverName: 'fs', transport: 'stdio', enabled: true, fiberPhase: null } })
+  const removeServer = vi.fn<() => Promise<RemoveResult>>()
+    .mockResolvedValue({ ok: true, value: { removed: true } })
+  ctx.provide('remote.mcpInventory', { list, upsert, removeServer })
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, list, upsert, removeServer }
 }
 
 /** Declare the settings-section seat the section registers into. */
@@ -112,6 +125,25 @@ describe('ui-settings-mcp browser plugin', () => {
     b.list.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
     await expect(configFace.list()).rejects.toThrow('mcpInventory.list failed: REMOTE_ERROR: unavailable')
     expect(b.list).toHaveBeenCalledTimes(2)
+
+    // The write face forwards upsert and removeServer with the same discipline.
+    await expect(configFace.upsert({ transport: 'stdio', serverName: 'fs', command: 'node' })).resolves
+      .toMatchObject({ serverName: 'fs' })
+    expect(b.upsert).toHaveBeenCalledWith({ transport: 'stdio', serverName: 'fs', command: 'node' })
+    b.upsert.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
+    await expect(configFace.upsert({ transport: 'stdio', serverName: 'fs', command: 'node' }))
+      .rejects.toThrow('mcpInventory.upsert failed: REMOTE_ERROR: unavailable')
+    await expect(configFace.removeServer('fs')).resolves.toEqual({ removed: true })
+    expect(b.removeServer).toHaveBeenCalledWith('fs')
+    b.removeServer.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
+    await expect(configFace.removeServer('fs')).rejects.toThrow('mcpInventory.removeServer failed: REMOTE_ERROR: unavailable')
+
+    // The inventory tab projects the same list through its own face.
+    const inventoryTab = tabsOf(b).find(entry => entry.options.id === 'inventory')!
+    const inventoryFace = (inventoryTab.inject as unknown as () => McpInventoryTabInjected)()
+    await expect(inventoryFace.list()).resolves.toEqual(EMPTY)
+    b.list.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
+    await expect(inventoryFace.list()).rejects.toThrow('mcpInventory.list failed: REMOTE_ERROR: unavailable')
 
     await b.ctx.fiber.dispose()
   })

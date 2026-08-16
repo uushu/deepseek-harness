@@ -6,6 +6,8 @@ export type SkillsSettingsLocaleKey =
   | 'loading' | 'error' | 'retry' | 'empty' | 'noSession'
   | 'modelInvocableTag' | 'userOnlyTag' | 'provider' | 'source' | 'whenToUse'
   | 'sources' | 'skills'
+  | 'addSkill' | 'save' | 'saving' | 'deleteSkill' | 'cancel' | 'saved'
+  | 'invalidSkill' | 'loadingBody' | 'deleteHint' | 'contentLabel' | 'nameLabel' | 'descriptionLabel'
 
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
@@ -27,6 +29,18 @@ export const zh = {
   whenToUse: '适用场景',
   sources: '来源分组',
   skills: '技能',
+  addSkill: '新建技能',
+  save: '保存',
+  saving: '保存中…',
+  deleteSkill: '删除',
+  cancel: '取消',
+  saved: '已保存，技能目录已更新。',
+  invalidSkill: '请填写技能名和描述。',
+  loadingBody: '正在读取正文…',
+  deleteHint: '删除后该技能将不再可用。',
+  contentLabel: '正文（Markdown）',
+  nameLabel: '技能名',
+  descriptionLabel: '描述',
 } satisfies Record<string, string>
 
 /** English dictionary checked against the Chinese key set. */
@@ -49,4 +63,16 @@ export const en: Record<SkillsSettingsLocaleKey, string> = {
   whenToUse: 'When to use',
   sources: 'By source',
   skills: 'Skills',
+  addSkill: 'New skill',
+  save: 'Save',
+  saving: 'Saving…',
+  deleteSkill: 'Delete',
+  cancel: 'Cancel',
+  saved: 'Saved; the skill directory is updated.',
+  invalidSkill: 'Enter a skill name and description.',
+  loadingBody: 'Reading body…',
+  deleteHint: 'Removing the skill makes it unavailable.',
+  contentLabel: 'Body (Markdown)',
+  nameLabel: 'Skill name',
+  descriptionLabel: 'Description',
 }

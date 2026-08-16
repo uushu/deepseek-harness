@@ -1,12 +1,11 @@
 /**
  * MCP settings surface, browser half — one section whose feature-owned tabs
- * show the deployment's configured MCP servers: redacted resolved-config
- * cards and a read-only instance inventory, both fed by the mcpInventory
- * Remote. Read-only by design: MCP server config lives in the deployment's
- * cordis.yml, so editing is a separate, write-path milestone.
+ * show the deployment's configured MCP servers: editable config cards that
+ * persist into the home-level user patch layer (`$DSH_HOME/cordis.patch.yml`,
+ * picked up by the config HMR) and a read-only instance inventory.
  */
 
-import type { McpInventorySnapshot } from '@deepseek-ai/dsh-api-remotes/client'
+import type { McpInventorySnapshot, McpServerConfigInput, McpServerView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale) and the
@@ -56,7 +55,21 @@ export function apply(ctx: ClientContext): void {
     }
     return result.value
   }
-  const configInjected = (): McpConfigTabInjected => ({ list })
+  const upsert = async (config: McpServerConfigInput): Promise<McpServerView> => {
+    const result = await ctx.remote.mcpInventory.upsert(config)
+    if (!result.ok) {
+      throw new Error(`mcpInventory.upsert failed: ${result.error.code}: ${result.error.message}`)
+    }
+    return result.value
+  }
+  const removeServer = async (serverName: string): Promise<{ removed: boolean }> => {
+    const result = await ctx.remote.mcpInventory.removeServer(serverName)
+    if (!result.ok) {
+      throw new Error(`mcpInventory.removeServer failed: ${result.error.code}: ${result.error.message}`)
+    }
+    return result.value
+  }
+  const configInjected = (): McpConfigTabInjected => ({ list, upsert, removeServer })
   const inventoryInjected = (): McpInventoryTabInjected => ({ list })
 
   let tabsVersion = -1

@@ -5,7 +5,7 @@
  * rebuilding it differently would replay tool calls the new agent cannot make.
  */
 
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -307,6 +307,156 @@ describe('a capability the session\'s preset mounts', () => {
     expect(response.result.ok).toBe(false)
     const failure = response.result as { ok: false; error: { message: string } }
     expect(failure.error.message).toContain('neither this session')
+  })
+})
+
+describe('skill.write', () => {
+  it('writes the project skill file with frontmatter and body', async () => {
+    const { api, cwd } = await harness()
+    await api.sessions.create(request({ sessionId: SessionId('w1') }))
+
+    const response = await api.skills.write(request({
+      sessionId: SessionId('w1'),
+      skill: {
+        name: 'demo-skill',
+        description: 'A demo skill',
+        whenToUse: 'when demoing',
+        modelInvocable: true,
+        content: 'Follow these instructions.\n\n1. First step',
+      },
+    }))
+
+    expect(response.result).toEqual({ ok: true, value: { name: 'demo-skill' } })
+    const file = join(cwd, '.dsh', 'skills', 'demo-skill', 'SKILL.md')
+    const raw = readFileSync(file, 'utf8')
+    expect(raw).toContain('name: demo-skill')
+    expect(raw).toContain('description: A demo skill')
+    expect(raw).toContain('whenToUse: when demoing')
+    expect(raw).not.toContain('disable-model-invocation')
+    expect(raw).toContain('Follow these instructions.')
+    rmSync(join(cwd, '.dsh'), { recursive: true, force: true })
+  })
+
+  it('writes disable-model-invocation for user-only skills and replaces existing files', async () => {
+    const { api, cwd } = await harness()
+    await api.sessions.create(request({ sessionId: SessionId('w2') }))
+    const payload = {
+      sessionId: SessionId('w2'),
+      skill: {
+        name: 'user-skill',
+        description: 'Only users may invoke',
+        modelInvocable: false,
+        content: 'v1',
+      },
+    }
+
+    await api.skills.write(request(payload))
+    await api.skills.write(request({
+      ...payload,
+      skill: { ...payload.skill, content: 'v2' },
+    }))
+
+    const file = join(cwd, '.dsh', 'skills', 'user-skill', 'SKILL.md')
+    const raw = readFileSync(file, 'utf8')
+    expect(raw).toContain('disable-model-invocation: true')
+    expect(raw).toContain('v2')
+    expect(raw).not.toContain('v1')
+    rmSync(join(cwd, '.dsh'), { recursive: true, force: true })
+  })
+
+  it('rejects invalid skill payloads with the invalid-skill code', async () => {
+    const { api } = await harness()
+    await api.sessions.create(request({ sessionId: SessionId('w3') }))
+
+    for (const skill of [
+      { name: 'Bad Name', description: 'd', modelInvocable: true, content: '' },
+      { name: 'ok-name', description: '', modelInvocable: true, content: '' },
+      { name: 'ok-name', description: 'd', modelInvocable: 'yes', content: '' },
+    ]) {
+      const response = await api.skills.write(request({ sessionId: SessionId('w3'), skill: skill as never }))
+      expect(response.result.ok).toBe(false)
+      if (response.result.ok) throw new Error('unreachable')
+      expect(response.result.error.code).toBe('invalid-skill')
+    }
+  })
+
+  it('refuses writes for an unknown session', async () => {
+    const { api } = await harness()
+    const response = await api.skills.write(request({
+      sessionId: SessionId('missing'),
+      skill: { name: 'demo', description: 'd', modelInvocable: true, content: '' },
+    }))
+    expect(response.result.ok).toBe(false)
+    if (response.result.ok) throw new Error('unreachable')
+    expect(response.result.error.code).toBe('session-not-found')
+  })
+})
+
+describe('skill.read', () => {
+  it('returns the markdown body without the frontmatter block', async () => {
+    const { api, cwd } = await harness()
+    await api.sessions.create(request({ sessionId: SessionId('rd1') }))
+    await api.skills.write(request({
+      sessionId: SessionId('rd1'),
+      skill: { name: 'readable', description: 'd', whenToUse: 'when reading', modelInvocable: false, content: 'Body line one\n\nBody line two' },
+    }))
+
+    const response = await api.skills.read(request({ sessionId: SessionId('rd1'), name: 'readable' }))
+    expect(response.result).toEqual({ ok: true, value: { content: 'Body line one\n\nBody line two' } })
+    expect(JSON.stringify(response.result)).not.toContain('when reading')
+    rmSync(join(cwd, '.dsh'), { recursive: true, force: true })
+  })
+
+  it('reports a missing skill file with skill-not-found', async () => {
+    const { api } = await harness()
+    await api.sessions.create(request({ sessionId: SessionId('rd2') }))
+    const response = await api.skills.read(request({ sessionId: SessionId('rd2'), name: 'absent' }))
+    expect(response.result.ok).toBe(false)
+    if (response.result.ok) throw new Error('unreachable')
+    expect(response.result.error.code).toBe('skill-not-found')
+  })
+
+  it('rejects an invalid skill name and an unknown session', async () => {
+    const { api } = await harness()
+    await api.sessions.create(request({ sessionId: SessionId('rd3') }))
+    const badName = await api.skills.read(request({ sessionId: SessionId('rd3'), name: '../evil' }))
+    expect(badName.result.ok).toBe(false)
+    if (badName.result.ok) throw new Error('unreachable')
+    expect(badName.result.error.code).toBe('invalid-skill')
+
+    const unknown = await api.skills.read(request({ sessionId: SessionId('nope'), name: 'x' }))
+    expect(unknown.result.ok).toBe(false)
+    if (unknown.result.ok) throw new Error('unreachable')
+    expect(unknown.result.error.code).toBe('session-not-found')
+  })
+})
+
+describe('skill.remove', () => {
+  it('removes the skill file and reports existence', async () => {
+    const { api, cwd } = await harness()
+    await api.sessions.create(request({ sessionId: SessionId('r1') }))
+    const write = await api.skills.write(request({
+      sessionId: SessionId('r1'),
+      skill: { name: 'gone-skill', description: 'd', modelInvocable: true, content: 'body' },
+    }))
+    expect(write.result.ok).toBe(true)
+
+    const removed = await api.skills.remove(request({ sessionId: SessionId('r1'), name: 'gone-skill' }))
+    expect(removed.result).toEqual({ ok: true, value: { removed: true } })
+    expect(existsSync(join(cwd, '.dsh', 'skills', 'gone-skill', 'SKILL.md'))).toBe(false)
+
+    const again = await api.skills.remove(request({ sessionId: SessionId('r1'), name: 'gone-skill' }))
+    expect(again.result).toEqual({ ok: true, value: { removed: false } })
+    rmSync(join(cwd, '.dsh'), { recursive: true, force: true })
+  })
+
+  it('rejects an invalid skill name', async () => {
+    const { api } = await harness()
+    await api.sessions.create(request({ sessionId: SessionId('r2') }))
+    const response = await api.skills.remove(request({ sessionId: SessionId('r2'), name: '../evil' }))
+    expect(response.result.ok).toBe(false)
+    if (response.result.ok) throw new Error('unreachable')
+    expect(response.result.error.code).toBe('invalid-skill')
   })
 })
 
