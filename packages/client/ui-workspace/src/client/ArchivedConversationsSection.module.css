@@ -137,5 +137,5 @@
 }
 
 .dangerDescription {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-primary);
 }
