@@ -123,7 +123,7 @@ describe('ArchivedConversationsSection', () => {
       { unarchive: vi.fn(async () => { throw new Error('存储写入失败') }) },
     )
     fireEvent.click(screen.getByText('取消归档'))
-    await waitFor(() => { expect(screen.getByText(/恢复失败/)).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByText(/取消归档失败/)).toBeTruthy() })
   })
 
   it('offers the trash as an icon-only danger button per row', () => {
