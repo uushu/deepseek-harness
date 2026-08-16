@@ -1,0 +1,228 @@
+/* MCP inventory tab: searchable read-only instance list. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.failure {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.failure p {
+  margin: 0;
+}
+
+.failure button {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.catalogHeading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.catalogHeading h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.catalogHeading span {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-surface);
+  overflow: hidden;
+}
+
+.cardContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  padding: 12px 14px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cardContent:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+.cardTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cardTrailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.transportTag {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-neutral);
+}
+
+.statusDot[data-phase='active'] {
+  background: var(--dsw-alias-state-success);
+}
+
+.statusDot[data-phase='failed'] {
+  background: var(--dsw-alias-state-danger);
+}
+
+.statusDot[data-phase='loading'],
+.statusDot[data-phase='pending'],
+.statusDot[data-phase='unloading'],
+.statusDot[data-phase='unobserved'] {
+  background: var(--dsw-alias-state-warning);
+}
+
+.configTag {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.configTag[data-enabled='true'] {
+  background: var(--dsw-alias-state-success-weak);
+  color: var(--dsw-alias-state-success);
+}
+
+.configTag[data-enabled='false'] {
+  background: var(--dsw-alias-state-neutral-weak);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.chevron {
+  color: var(--dsw-alias-label-tertiary);
+  transition: transform 120ms ease;
+}
+
+.card[data-open='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.cardDetails {
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.entryValue {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.details dt {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

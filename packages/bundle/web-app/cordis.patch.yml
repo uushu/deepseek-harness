@@ -94,6 +94,11 @@
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
 
+    # Read-only projection of the deployment's configured MCP servers for the
+    # MCP settings section (mcpInventory/list).
+    - id: mcp-inventory
+      name: '@deepseek-ai/dsh-host-mcp-inventory'
+
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
     - id: api-gateway
@@ -194,6 +199,16 @@
 
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
+
+    # MCP servers settings: redacted resolved-config cards and a read-only
+    # instance inventory, both over the mcpInventory Remote.
+    - id: ui-settings-mcp
+      name: '@deepseek-ai/dsh-client-ui-settings-mcp'
+
+    # Skills settings: the current project's skill catalog plus a
+    # provider/source grouping, read through the skill.list RPC.
+    - id: ui-settings-skills
+      name: '@deepseek-ai/dsh-client-ui-settings-skills'
 
     - id: ui-conversation
       name: '@deepseek-ai/dsh-client-ui-conversation'

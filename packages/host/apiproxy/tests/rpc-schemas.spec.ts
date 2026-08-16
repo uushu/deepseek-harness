@@ -421,15 +421,19 @@ describe('skills domain schemas', () => {
     expect(() => skillListRequestSchema.parse({})).toThrow()
     expect(skillListValueSchema.parse({ skills: [] }).skills).toEqual([])
     const value = skillListValueSchema.parse({ skills: [
-      { name: 'commit-helper', description: 'Git commits', whenToUse: 'when committing', modelInvocable: true },
-      { name: 'bare', description: 'No guidance', modelInvocable: false },
+      { name: 'commit-helper', description: 'Git commits', whenToUse: 'when committing', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' },
+      { name: 'bare', description: 'No guidance', modelInvocable: false, provider: 'runtime', source: 'runtime' },
     ] })
     expect(value.skills[0]?.whenToUse).toBe('when committing')
     expect(value.skills[1]?.whenToUse).toBeUndefined()
     expect(value.skills[1]?.modelInvocable).toBe(false)
-    expect(() => skillEntrySchema.parse({ name: '', description: 'd', modelInvocable: true })).toThrow()
+    expect(value.skills[1]?.provider).toBe('runtime')
+    expect(value.skills[1]?.source).toBe('runtime')
+    expect(() => skillEntrySchema.parse({ name: '', description: 'd', modelInvocable: true, provider: 'p', source: 's' })).toThrow()
     // modelInvocable is required wire data: an entry without it fails.
     expect(() => skillEntrySchema.parse({ name: 'n', description: 'd' })).toThrow()
+    // provider/source are required wire data: an entry without them fails.
+    expect(() => skillEntrySchema.parse({ name: 'n', description: 'd', modelInvocable: true })).toThrow()
   })
 })
 

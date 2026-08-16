@@ -1,0 +1,152 @@
+/* Skills configuration tab: source-grouped catalog. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.failure {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.failure p {
+  margin: 0;
+}
+
+.failure button {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.catalogHeading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.catalogHeading h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.catalogHeading span {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group {
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-surface);
+  overflow: hidden;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.groupTitle {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.groupTitle strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sourceTag {
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  background: var(--dsw-alias-state-neutral-weak);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.groupCount {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.skillList {
+  list-style: none;
+  margin: 0;
+  padding: 6px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.skillRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+}
+
+.skillName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.invocationTag {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  flex-shrink: 0;
+}
+
+.invocationTag[data-model='true'] {
+  background: var(--dsw-alias-state-business-weak);
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.invocationTag[data-model='false'] {
+  background: var(--dsw-alias-state-neutral-weak);
+  color: var(--dsw-alias-label-tertiary);
+}

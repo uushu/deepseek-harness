@@ -18,6 +18,10 @@ export interface SkillEntry {
   readonly whenToUse?: string
   /** False marks a user-only skill (`disable-model-invocation`): invocable here, absent from the model catalog. */
   readonly modelInvocable: boolean
+  /** Provider that owns this skill body (e.g. `filesystem`). */
+  readonly provider: string
+  /** Discovery source that produced this winning skill (e.g. `project-dsh`, `user-agents`, `bundled`). */
+  readonly source: string
 }
 
 /**
