@@ -23,6 +23,8 @@ import type {
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
+import { PersonalizationSection } from './PersonalizationSection.tsx'
+import type { PersonalizationSectionInjected } from './PersonalizationSection.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
 import { refreshDocumentIfLoaded, SettingsDocumentStore } from './settings-document-store.ts'
@@ -34,6 +36,9 @@ export type {
 export type {
   GeneralSectionComponentProps,
 } from './GeneralSection.tsx'
+export type {
+  PersonalizationSectionInjected, PersonalizationSectionProps,
+} from './PersonalizationSection.tsx'
 export type { SettingsDocumentActionInjected, SettingsDocumentActionProps } from './SettingsDocumentAction.tsx'
 export type { SettingsDocumentState } from './settings-document-store.ts'
 export { SettingsDocumentStore } from './settings-document-store.ts'
@@ -175,4 +180,39 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     children: { 'settings.general.item': { kind: 'list', scope: 'root' } },
   }, GeneralSection))
+
+  // The personalization page: the user's GUI-editable instruction list, stored
+  // in the `personalization` settings namespace (mirrored in the spec files).
+  const PERSONALIZATION_SETTINGS_NAMESPACE = 'personalization'
+  const personalizationInjected = (): PersonalizationSectionInjected => {
+    const api = connection.api
+    return {
+      load: async () => {
+        const response = await api.settings.describe({})
+        if (!response.result.ok) throw new Error(response.result.error.message)
+        const view = response.result.value.namespaces.find(
+          candidate => candidate.ns === PERSONALIZATION_SETTINGS_NAMESPACE,
+        )
+        const instructions = (view?.value as { instructions?: unknown } | undefined)?.instructions
+        return Array.isArray(instructions)
+          ? instructions.filter((item): item is string => typeof item === 'string')
+          : []
+      },
+      save: async (instructions) => {
+        const response = await api.settings.mutate({
+          ns: PERSONALIZATION_SETTINGS_NAMESPACE,
+          ops: [{ op: 'set', path: ['instructions'], value: instructions }],
+        })
+        if (!response.result.ok) throw new Error(response.result.error.message)
+      },
+    }
+  }
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'personalization',
+    order: 15,
+    label: () => t('personalization.nav'),
+    locale: NS,
+    inject: personalizationInjected,
+  }, PersonalizationSection))
 }
