@@ -12,10 +12,21 @@
 }
 
 /* Harness 官网风（暗色系）：details 不是灰色后台面板 —— 与主工作区同一套
-   暗色半透明技术表面（规范 §56）。 */
+   暗色半透明技术表面（规范 §56）。模糊放在 ::before 层（避免 backdrop-filter
+   成为 fixed 弹层包含块，见 SidebarRoot 同款注释）。 */
 :global(body[data-ds-dark-theme]) .root {
+  position: relative;
+  isolation: isolate;
   background: linear-gradient(180deg, rgba(8, 16, 28, 0.82), rgba(6, 12, 21, 0.76));
+}
+
+:global(body[data-ds-dark-theme]) .root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   backdrop-filter: blur(18px);
+  pointer-events: none;
 }
 
 /* figma RightSidebar header frame (I54:42735;43:36451): pad 14/12/12/12, gap 8. */
