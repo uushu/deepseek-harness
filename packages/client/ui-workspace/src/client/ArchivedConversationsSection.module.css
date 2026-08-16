@@ -79,6 +79,36 @@
   flex-shrink: 0;
 }
 
+/* Icon-only move-to-trash button: one danger glyph per row. */
+.trashButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  background: var(--dsw-alias-surface-l2);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.trashButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-color: var(--dsw-alias-border-l3);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.trashButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.trashIcon {
+  display: block;
+}
+
 .empty {
   margin: 0;
   font-size: 13px;

@@ -1668,3 +1668,35 @@ describe('JsonlSessionPersistence: cwd retarget', () => {
     expect(await readFile(path, 'utf8')).toBe(before)
   })
 })
+
+describe('JsonlSessionPersistence: remove', () => {
+  let ctx: Context
+  let root: string
+
+  beforeEach(async () => {
+    root = await freshRoot()
+    ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
+  })
+
+  it('destroys the artifact and forgets the session', async () => {
+    const m = meta('remove-me', '/proj/rm')
+    await ctx.sessionPersistence.create(m)
+    await ctx.sessionPersistence.append(m.id, oneTurnLog())
+    expect((await ctx.sessionPersistence.list()).map(h => h.id)).toContain(m.id)
+
+    await ctx.sessionPersistence.remove(m.id)
+
+    // The header line lives inside the artifact, so the file removal forgets
+    // the metadata too: a cold list can never resurface the session.
+    expect((await ctx.sessionPersistence.list()).map(h => h.id)).not.toContain(m.id)
+    await expect(readFile(rawLogPath(root, '/proj/rm', m.id), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(ctx.sessionPersistence.load(m.id)).rejects.toThrow()
+  })
+
+  it('is an idempotent no-op for an absent session', async () => {
+    await ctx.sessionPersistence.remove(meta('remove-ghost', '/proj/rm').id)
+    expect(await ctx.sessionPersistence.list()).toHaveLength(0)
+  })
+})

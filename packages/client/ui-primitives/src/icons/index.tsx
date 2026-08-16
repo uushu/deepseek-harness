@@ -809,6 +809,20 @@ export const IconGoalOutline16 = ({ size = 16, className }: IconProps) => (
   </svg>
 )
 
+/** document_outline_16: a file sheet with a folded corner and two text lines (hand-authored). */
+export const IconDocumentOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M4.5 1.25H9.12868C9.3919 1.25 9.64446 1.35536 9.83233 1.54323L12.4568 4.16777C12.6447 4.35564 12.75 4.6082 12.75 4.8714V13.75C12.75 14.3023 12.3023 14.75 11.75 14.75H4.5C3.94772 14.75 3.5 14.3023 3.5 13.75V2.25C3.5 1.69772 3.94772 1.25 4.5 1.25Z"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinejoin="round"
+    />
+    <path d="M9 1.5V4.75H12.5" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    <path d="M5.5 8.5H10.5M5.5 11H10.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+)
+
 /** sparkle_16 (Others tool-row leading glyph; hand-authored three-star
  *  approximation — the figma 43:31850 glyph is an SF Symbols "sparkles" text glyph,
  *  not extractable as vector data) */

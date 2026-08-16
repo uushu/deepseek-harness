@@ -191,6 +191,16 @@ export class SqliteSessionPersistence extends SessionPersistence implements Pers
     }
   }
 
+  /**
+   * Permanently remove one session: the `sessions` row, whose `events` rows
+   * cascade through the foreign key. An absent id is an idempotent no-op.
+   * @param id - the persisted session to destroy.
+   */
+  override async remove(id: SessionId): Promise<void> {
+    await this.ready
+    this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
+  }
+
   create(meta: SessionHeader): Promise<void> {
     return this.coordinator.create(meta)
   }

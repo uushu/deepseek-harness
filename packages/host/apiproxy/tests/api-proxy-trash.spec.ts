@@ -89,6 +89,12 @@ function fakePersistence(root: string) {
       logs.set(id, [...(logs.get(id) ?? []), ...events])
       return Promise.resolve()
     },
+    remove: (id: SessionId) => {
+      headers.delete(id)
+      logs.delete(id)
+      rmSync(join(root, `${id}.jsonl`), { force: true })
+      return Promise.resolve()
+    },
   }
 }
 
@@ -327,6 +333,9 @@ describe('session.purge', () => {
       expect(purged.result).toMatchObject({ ok: true, value: { purged: true } })
       expect(existsSync(location.path)).toBe(false)
       expect(expectOk(await h.api.sessions.listTrashed(request({}))).items).toHaveLength(0)
+      // The persisted header is gone too: a cold list after a restart must
+      // not resurface the purged session.
+      expect((await h.persistence.list()).map(item => item.id)).not.toContain(sessionId)
 
       // The trash preview now refuses the id.
       const preview = await h.api.sessions.trashHistory(request({ sessionId }))

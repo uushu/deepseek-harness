@@ -10,7 +10,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import type { SessionId, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconTrashOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ArchivedConversationsSectionProps } from './contract/slots.ts'
 import css from './ArchivedConversationsSection.module.css'
 
@@ -137,15 +137,16 @@ export function ArchivedConversationsSection({
                   >
                     {busyId === session.id ? t('archived.restore.pending') : t('archived.restore')}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={css.dangerAction}
+                  <button
+                    type="button"
+                    className={css.trashButton}
+                    aria-label={t('archived.trash')}
+                    title={t('archived.trash')}
                     disabled={busyId !== null || trashing}
                     onClick={() => { setTrashTarget(session.id); setTrashError(null) }}
                   >
-                    {t('archived.trash')}
-                  </Button>
+                    <IconTrashOutline16 size={16} className={css.trashIcon} />
+                  </button>
                 </div>
               </li>
             ))}

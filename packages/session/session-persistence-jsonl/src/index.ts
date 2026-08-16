@@ -351,6 +351,28 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
   }
 
   /**
+   * Permanently remove one persisted session: its artifact (the header line
+   * lives inside it, so destroying the file forgets the metadata too) and the
+   * empty directories the artifact leaves behind. An absent id is an
+   * idempotent no-op.
+   * @param id - the persisted session to destroy.
+   */
+  override async remove(id: SessionId): Promise<void> {
+    await this.ensureRootEncoding()
+    const path = await this.findLog(id)
+    if (path === undefined) return
+    await rm(path, { force: true })
+    await this.pruneEmptyDirs(path)
+    if (process.platform !== 'win32') {
+      try {
+        await this.syncDirPosix(dirname(path))
+      } catch {
+        // The session directory was pruned or is otherwise gone.
+      }
+    }
+  }
+
+  /**
    * Read a file's bytes under a revision-stable loop: a writer appending
    * between stat and readFile would yield a torn physical file, so retry
    * while the stat revision changes.

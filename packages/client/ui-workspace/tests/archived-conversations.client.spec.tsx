@@ -106,24 +106,34 @@ describe('ArchivedConversationsSection', () => {
     expect(screen.getByText('没有已归档的会话')).toBeTruthy()
   })
 
-  it('restores a session and shows the notice', async () => {
+  it('unarchives a session and shows the notice', async () => {
     const { unarchive } = mount(
       listState({ a: summary('a') }),
       workspacesState([], ['a']),
     )
-    fireEvent.click(screen.getByText('恢复'))
+    fireEvent.click(screen.getByText('取消归档'))
     await waitFor(() => { expect(unarchive).toHaveBeenCalledWith(sid('a')) })
-    await waitFor(() => { expect(screen.getByText('已恢复')).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByText('已取消归档')).toBeTruthy() })
   })
 
-  it('shows the restore failure', async () => {
+  it('shows the unarchive failure', async () => {
     mount(
       listState({ a: summary('a') }),
       workspacesState([], ['a']),
       { unarchive: vi.fn(async () => { throw new Error('存储写入失败') }) },
     )
-    fireEvent.click(screen.getByText('恢复'))
+    fireEvent.click(screen.getByText('取消归档'))
     await waitFor(() => { expect(screen.getByText(/恢复失败/)).toBeTruthy() })
+  })
+
+  it('offers the trash as an icon-only danger button per row', () => {
+    mount(
+      listState({ a: summary('a') }),
+      workspacesState([], ['a']),
+    )
+    const trash = screen.getByRole('button', { name: '移入回收站' })
+    expect(trash.querySelector('svg')).toBeTruthy()
+    expect(trash.textContent).toBe('')
   })
 
   it('confirms move-to-trash in the dialog, then calls trashSession', async () => {
@@ -131,7 +141,7 @@ describe('ArchivedConversationsSection', () => {
       listState({ a: summary('a') }),
       workspacesState([], ['a']),
     )
-    fireEvent.click(screen.getByText('移入回收站'))
+    fireEvent.click(screen.getByRole('button', { name: '移入回收站' }))
     const dialog = screen.getByRole('dialog', { name: '移入回收站？' })
     expect(within(dialog).getByText(/保留 30 天/)).toBeTruthy()
     fireEvent.click(within(dialog).getByText('移入回收站'))
@@ -145,7 +155,7 @@ describe('ArchivedConversationsSection', () => {
       workspacesState([], ['a']),
       { trashSession: vi.fn(async () => { throw new Error('服务不可用') }) },
     )
-    fireEvent.click(screen.getByText('移入回收站'))
+    fireEvent.click(screen.getByRole('button', { name: '移入回收站' }))
     fireEvent.click(within(screen.getByRole('dialog', { name: '移入回收站？' })).getByText('移入回收站'))
     await waitFor(() => { expect(screen.getByText(/移入回收站失败/)).toBeTruthy() })
     expect(screen.getByRole('dialog', { name: '移入回收站？' })).toBeTruthy()

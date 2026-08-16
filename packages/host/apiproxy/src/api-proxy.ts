@@ -39,7 +39,8 @@ import type {} from '@deepseek-ai/dsh-tools'
 import type {
   ApiProxy, ConfigurableProviderView, CredentialView, GoalRef, HistoryEntry, HostFrame,
   ModelCatalogFailure, ModelProviderGroup,
-  ModelReasoning, MuxFrame, PromptContentPart, QuestionResponsePayload, SessionListMetadata, SessionProjectionsBlock, SessionSearchItem,
+  ModelReasoning, MuxFrame, PromptContentPart, ProviderBalanceView, QuestionResponsePayload,
+  SessionListMetadata, SessionProjectionsBlock, SessionSearchItem,
   QueuedInboxItem, SessionSummary, SettingsNamespaceView, SubagentAddress, JobView, ToolEventView,
   TrashedSession, WorkspaceId, WorkspaceView,
 } from './api/index.ts'
@@ -133,11 +134,12 @@ export async function sweepSessionTrash(
   const persistence = ctx.get('sessionPersistence')
   const purged = await trash.sweep(now, async (entry) => {
     if (persistence === undefined) return
-    const stored = await storedHeaderFor(ctx, entry.sessionId)
-    if (stored === undefined) return
-    const location = persistence.locate(stored)
-    if (location !== undefined) {
-      await rm(location.path, { force: true })
+    try {
+      await persistence.remove(entry.sessionId)
+    } catch (error: unknown) {
+      ctx.logger.warn(
+        `session trash: could not remove persisted session "${entry.sessionId}": ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   })
   if (purged > 0) {
@@ -158,6 +160,48 @@ async function storedHeaderFor(ctx: Context, sessionId: SessionId): Promise<Sess
   const persistence = ctx.get('sessionPersistence')
   if (persistence === undefined) return undefined
   return (await persistence.list()).find(header => header.id === sessionId)
+}
+
+/**
+ * The DeepSeek account's API balance, when the deployment resolves the
+ * official `DEEPSEEK_API_KEY` credential. Fails soft: no credential, a
+ * non-OK provider response, or a network failure all answer null (the
+ * surface hides the row rather than erroring).
+ * @param ctx - the host context (credentials read via `ctx.get`).
+ * @returns the first reported currency's balance, or null when unavailable.
+ */
+export async function fetchDeepSeekBalance(ctx: Context): Promise<ProviderBalanceView | null> {
+  const credentials = ctx.get('credentials')
+  const hit = await credentials?.resolve(credentialRef('DEEPSEEK_API_KEY'))
+  const apiKey = hit?.value
+  if (apiKey === undefined || apiKey.length === 0) return null
+  try {
+    const response = await fetch('https://api.deepseek.com/user/balance', {
+      headers: { authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!response.ok) return null
+    const body = await response.json() as {
+      balance_infos?: Array<{
+        currency?: string
+        total_balance?: string
+        granted_balance?: string
+        topped_up_balance?: string
+      }>
+    }
+    const info = body.balance_infos?.find(entry =>
+      entry.currency !== undefined && entry.total_balance !== undefined && entry.total_balance !== '0')
+      ?? body.balance_infos?.[0]
+    if (info === undefined || info.currency === undefined || info.total_balance === undefined) return null
+    return {
+      currency: info.currency,
+      total: info.total_balance,
+      granted: info.granted_balance ?? '0',
+      toppedUp: info.topped_up_balance ?? '0',
+    }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -3109,20 +3153,16 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             details: { sessionId },
           })
         }
-        // Remove the durable log (file changes were already rolled back at
-        // trash time), then drop the index row. Best-effort on the log like
-        // session.delete: an unremovable artifact reports and still purges.
+        // Remove the persisted session — its header AND its log — so nothing
+        // survives to resurface in a cold list after a host restart. Best-effort
+        // like session.delete: an unremovable backend reports and still purges.
         const persistence = ctx.get('sessionPersistence')
-        const stored = await storedHeaderFor(ctx, sessionId)
-        if (persistence !== undefined && stored !== undefined) {
+        if (persistence !== undefined) {
           try {
-            const location = persistence.locate(stored)
-            if (location !== undefined) {
-              await rm(location.path, { force: true })
-            }
+            await persistence.remove(sessionId)
           } catch (error: unknown) {
             ctx.logger.warn(
-              `session.purge: could not remove persisted log for "${sessionId}": ${error instanceof Error ? error.message : String(error)}`,
+              `session.purge: could not remove persisted session "${sessionId}": ${error instanceof Error ? error.message : String(error)}`,
             )
           }
         }
@@ -4009,6 +4049,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async models(request) {
         return ok(request, await buildModelCatalog(ctx))
+      },
+
+      async balance(request) {
+        return ok(request, { balance: await fetchDeepSeekBalance(ctx) })
       },
 
       async discoverModels(request, signal) {

@@ -235,6 +235,22 @@ export abstract class SessionPersistence extends Service {
   }
 
   /**
+   * Permanently remove one persisted session — its header AND its log. The
+   * hard-delete primitive behind trash purge and the retention sweep: a
+   * session that survives only as durable metadata would resurface in the
+   * next cold `list()` after a host restart, so backends must destroy the
+   * header record, not just the artifact bytes. Idempotent for an unknown
+   * id. Backends that cannot forget a session reject (purge then surfaces
+   * the failure rather than silently leaving a ghost).
+   * @param _id - the persisted session to destroy.
+   * @returns resolution after durability.
+   * @throws when this backend cannot remove the session.
+   */
+  remove(_id: SessionId): Promise<void> {
+    return Promise.reject(new Error('this session persistence backend does not support session removal'))
+  }
+
+  /**
    * Lightweight listing from metadata, without a full-log parse.
    * @param signal - optional cancellation for backend listing work.
    * @returns one header per materialized session.

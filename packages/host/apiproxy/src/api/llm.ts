@@ -74,6 +74,26 @@ export interface LlmApi {
     }>,
     signal?: AbortSignal,
   ): Promise<RpcResponse<{ models: DiscoveredModelView[] }>>
+
+  /**
+   * The DeepSeek account's API balance, when the deployment resolves the
+   * official `DEEPSEEK_API_KEY` credential. Fails soft: no credential, a
+   * non-OK provider response, or a network failure all answer `null` (the
+   * surface hides the row rather than erroring).
+   */
+  balance(request: RpcRequest<{}>): Promise<RpcResponse<{ balance: ProviderBalanceView | null }>>
+}
+
+/** Wire view of one currency's balance on the provider account. */
+export interface ProviderBalanceView {
+  /** Currency code the provider reports (`CNY`, `USD`, …). */
+  currency: string
+  /** Total balance (topped-up + granted). */
+  total: string
+  /** Balance granted by the provider (promotions, trial credit). */
+  granted: string
+  /** Balance topped up by the user. */
+  toppedUp: string
 }
 
 /** Wire view of one model an interrogated endpoint advertises. */

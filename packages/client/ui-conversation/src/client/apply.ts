@@ -1,6 +1,8 @@
 /** Registers the conversation components, shared store, and service callbacks. */
+import { createElement, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import { resolveSlotLabel, type BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
+import type { IApiClient, ProviderBalanceView } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   resolveWorkspacePath, type ISessions, type SessionId,
 } from '@deepseek-ai/dsh-client-runtime/client'
@@ -28,7 +30,7 @@ import { InputBar } from './skeleton/InputBar.tsx'
 import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
 import type { EnterBehaviorRowInjected } from './settings/EnterBehaviorRow.tsx'
 import { ChatView } from './chat/ChatView.tsx'
-import { StatsLine } from './chat/StatsLine.tsx'
+import { StatsLine, type StatsLineProps } from './chat/StatsLine.tsx'
 import { ApprovalPanel } from './skeleton/ApprovalPanel.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { queueDockEntry } from './queue/QueueDock.tsx'
@@ -73,6 +75,52 @@ const ABSENT_LEXICON = {
 const ABSENT_MENU_LAUNCHER = {
   getSnapshot: (): string | null => null,
   subscribe: () => () => {},
+}
+
+/** How long one `llm.balance` answer stays fresh before the next fetch. */
+const BALANCE_TTL_MS = 60_000
+
+/** A balance value that settles once and is then re-fetched on a TTL. */
+interface BalanceSnapshotSource {
+  getSnapshot(): ProviderBalanceView | undefined
+  subscribe(listener: () => void): () => void
+}
+
+/**
+ * TTL-cached account-balance source for the stats line: the first subscribed
+ * renderer fetches, later subscribers reuse the cached answer, and the TTL
+ * re-fetch is armed once per answer. Fails soft — a missing api face or a
+ * failed RPC keeps the last known balance (undefined before any answer).
+ * @param api - the connection's client api; a composition without it never fetches.
+ * @returns the snapshot source.
+ */
+function balanceSource(api: IApiClient | undefined): BalanceSnapshotSource {
+  let cached: ProviderBalanceView | undefined
+  let cachedAt = 0
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const listeners = new Set<() => void>()
+  const emit = (): void => { for (const listener of listeners) listener() }
+  const refresh = (): void => {
+    if (api?.llm === undefined) return
+    void api.llm.balance({}).then((response) => {
+      const result = response.result
+      cached = result.ok ? result.value.balance ?? undefined : cached
+      cachedAt = Date.now()
+      emit()
+    }).catch(() => { /* soft: keep the last known balance */ })
+  }
+  return {
+    getSnapshot: () => cached,
+    subscribe(listener) {
+      listeners.add(listener)
+      if (cachedAt === 0) refresh()
+      else if (Date.now() - cachedAt >= BALANCE_TTL_MS) refresh()
+      else if (timer === undefined) {
+        timer = setTimeout(() => { timer = undefined; refresh() }, BALANCE_TTL_MS - (Date.now() - cachedAt))
+      }
+      return () => { listeners.delete(listener) }
+    },
+  }
 }
 
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
@@ -426,7 +474,22 @@ export function apply(ctx: Context): void {
   }, ChatView)
 
   // Session stats stick with the composer (composer.dock = stats-line family).
-  slots.register({ name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS }, StatsLine)
+  // The balance is account-global, so the mount feeds the row from a shared
+  // TTL-cached source instead of a session projection.
+  const balanceStore = balanceSource(
+    (ctx.get('connection') as { api?: IApiClient } | undefined)?.api,
+  )
+  const StatsLineWithBalance = (props: StatsLineProps) => {
+    const balance = useSyncExternalStore(
+      listener => balanceStore.subscribe(listener),
+      () => balanceStore.getSnapshot(),
+    )
+    return createElement(StatsLine, {
+      ...props,
+      ...balance === undefined ? {} : { balance },
+    })
+  }
+  slots.register({ name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS }, StatsLineWithBalance)
 
   // Class-plugin mount (packages/AGENTS.md service form): the service
   // registers itself as `conversation` and lives on its own child fiber.

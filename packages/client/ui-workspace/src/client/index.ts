@@ -177,12 +177,12 @@ export function apply(ctx: ClientContext): void {
   // domain (the browser's row-menu Archive action feeds it), so it also owns
   // the settings row that manages the archive. The section reads the
   // runtime's live archive set through the global hooks; no request-local
-  // list, and no child slots.
+  // list, and no child slots. It sits directly above the trash page.
   ctx.slots.inject('settings.section', () => ctx.slots.register(
     {
       name: 'settings.section',
       id: 'archived-conversations',
-      order: 26,
+      order: 24,
       label: () => t('archived.nav'),
       locale: NS,
       inject: archivedSectionInjected,

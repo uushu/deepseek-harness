@@ -6,6 +6,7 @@ import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState } from 'reac
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationSnapshot, UseProjection } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ProviderBalanceView } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: merges the sessionStats key into SessionProjectionMap for useProjection.
 import type {} from '@deepseek-ai/dsh-session-stats/client'
 import type { ContextPressureProjection, TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
@@ -152,15 +153,27 @@ export function contextOccupancy(
   }
 }
 
+/**
+ * Balance amount with the provider's currency prefix: `¥105.5` for CNY,
+ * `105.5 USD` otherwise.
+ * @param balance - the provider account balance.
+ * @returns the display string.
+ */
+export function formatBalance(balance: ProviderBalanceView): string {
+  return balance.currency === 'CNY' ? `¥${balance.total}` : `${balance.total} ${balance.currency}`
+}
+
 /** Props: the conversation-snapshot selector plus the projection read seat. */
 export interface StatsLineProps {
   useSession: SnapshotSelectorHook<ConversationSnapshot>
   useProjection: UseProjection
   /** The owning dock's locale seat. */
   t: ComposerBarProps['t']
+  /** Provider account balance appended as the final group; absent = hidden. */
+  balance?: ProviderBalanceView
 }
 
-export const StatsLine = memo(function StatsLine({ useSession, useProjection, t }: StatsLineProps) {
+export const StatsLine = memo(function StatsLine({ useSession, useProjection, t, balance }: StatsLineProps) {
   const settledNodes = useSession(s => s.chat.legacy.nodes)
   const usage = useProjection('tokenUsage')
   // Every figure rides the durable sessionStats projection, so paging and
@@ -203,6 +216,10 @@ export const StatsLine = memo(function StatsLine({ useSession, useProjection, t 
       output: formatTokens(usage.outputTokens),
     }))
   }
+  // The account balance is account-global (not a session projection); it is
+  // refreshed on a TTL by the mounting composition and rides here as a plain
+  // value so this row stays a pure function of its props.
+  if (balance !== undefined) groups.push(t('stats.balance', { amount: formatBalance(balance) }))
   const line = groups.join(' | ')
   // The row elides with ellipsis when overlong; a delayed hover tooltip carries
   // the full line, enabled only while content is actually clipped.

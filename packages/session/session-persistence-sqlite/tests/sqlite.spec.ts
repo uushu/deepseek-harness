@@ -974,3 +974,29 @@ describe('SqliteSessionPersistence: cwd retarget', () => {
     await dispose()
   })
 })
+
+describe('SqliteSessionPersistence: remove', () => {
+  it('destroys the header row, cascading to its events', async () => {
+    const { ctx, dispose } = await backend()
+    const m = meta('remove-me', '/proj/rm')
+    await ctx.sessionPersistence.create(m)
+    await ctx.sessionPersistence.append(m.id, oneTurnLog())
+    expect((await ctx.sessionPersistence.list()).map(h => h.id)).toContain(m.id)
+
+    await ctx.sessionPersistence.remove(m.id)
+
+    // The sessions row is gone (events cascade through the foreign key): a
+    // cold list after a host restart can never resurface the session.
+    expect((await ctx.sessionPersistence.list()).map(h => h.id)).not.toContain(m.id)
+    await expect(ctx.sessionPersistence.load(m.id)).rejects.toThrow()
+    await expect(ctx.sessionPersistence.inspect(m.id)).rejects.toThrow()
+    await dispose()
+  })
+
+  it('is an idempotent no-op for an absent session', async () => {
+    const { ctx, dispose } = await backend()
+    await ctx.sessionPersistence.remove(SessionId('remove-ghost'))
+    expect(await ctx.sessionPersistence.list()).toHaveLength(0)
+    await dispose()
+  })
+})
