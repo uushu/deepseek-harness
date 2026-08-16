@@ -29,6 +29,14 @@
 - `ui-theme` + `ui-layout` 全部测试通过（122 个）；`tsc -b tsconfig.client.json` 通过；`apps/web build` 通过，dist 含 `fonts/` 与 7 条 `@font-face`。
 - 视觉效果：本地对比渲染确认 harness 呈现纯黑背景、白底主按钮、品牌蓝链接。
 
+## 二期：官网同源视觉重构（ambient + 表面材质）
+
+- `harness-site-tokens.ts`（新增）：token 词典单一权威来源，`harness-theme.ts` 重新导出；会话域表面按实测/规格校准（sidebar-fill rgba(6,13,23,.74)、bubble rgba(17,32,52,.72)、menu rgba(14,27,44,.96) 等）。
+- `ui-layout` 新增 `AmbientBackground` + `ParticleField`：CSS 大气层（base 渐变 + 双光晕 + 丝带 + 暗角）+ 确定性粒子场（mulberry32(4176)、低频 30s 整波、DPR≤2、hidden 暂停、reduced-motion/`?visual-test=1` 冻结单帧）。AppFrame 只加分层（`isolation: isolate` + 列 z-index），不动布局求解器。
+- 表面材质（`body[data-ds-dark-theme]` 作用域，不动业务状态机）：Sidebar 毛玻璃（blur 22px）、Composer 玻璃胶囊（半径 14px + blur 24px + focus 蓝辉光）、Details 渐变玻璃、用户弱气泡、工具块细边 ring、中心列半透明渐变让粒子若隐若现；chat 宽 748→780。
+- 视觉规格：`docs/ui/harness-site-visual-spec.md`（中英配对，参数单一对照物）。
+- 验收：ui-layout/ui-theme/ui-conversation/ui-primitives/ui-sidebar 测试全绿（含 ambient 新规格 9 例）、`tsc -b tsconfig.client.json` 通过、apps/web 构建通过；截图矩阵 1920/1440/1280/1024 × 六状态，参考图对比按规格 §8 量化验收。
+
 ## 已知边界
 
 - `api-catalog.ts` 的 `ThemePreference` 声明是 `typeof THEME_PREFERENCES[number]` 引用，无需重新生成；`gen-cordis-api` 目前被工作区既有 session 事件文档缺参阻塞，与本次改动无关。

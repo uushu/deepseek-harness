@@ -105,3 +105,9 @@
   font: var(--dsw-font-markdown-code-block);
   color: var(--dsw-alias-label-tertiary);
 }
+
+/* Harness 官网风（暗色系）：统一工具表面 —— 极弱冷色细边（规范 §45），
+   inset ring 不影响布局。 */
+:global(body[data-ds-dark-theme]) .block {
+  box-shadow: inset 0 0 0 1px rgba(176, 205, 235, 0.085);
+}

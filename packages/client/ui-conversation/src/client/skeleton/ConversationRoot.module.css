@@ -19,10 +19,16 @@
      the input card clears the bare clearance, so the input card stays exactly
      content + 32px at every width. Declared on the root because the
      transcript and the composer seat are sibling subtrees. */
-  --dsh-chat-content-width: 748px;
+  --dsh-chat-content-width: 780px;
   --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
   --dsh-composer-side-clearance: 16px;
   --dsh-composer-dock-inset: 8px;
+}
+
+/* Harness 官网风（暗色系）：中心列本身不涂满 —— 让环境光/粒子透过聊天区
+   若隐若现（AppFrame 中心列已加极淡渐变，这里透传）。 */
+:global(body[data-ds-dark-theme]) .root {
+  background: transparent;
 }
 
 .header {

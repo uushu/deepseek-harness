@@ -1,5 +1,6 @@
 .frame {
   position: relative; /* anchors the drag handles, which straddle column borders */
+  isolation: isolate; /* the ambient layer's z-index stays inside the frame */
   display: grid;
   grid-template-rows: 100%;
   height: 100%;
@@ -27,6 +28,8 @@
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
   border-right: 1px solid var(--dsw-alias-border-l1);
+  position: relative;
+  z-index: 1; /* 位于环境光层之上 */
 }
 
 .centerCol {
@@ -34,12 +37,22 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* 中心列：暗色主题下加一层极淡垂直渐变，让正文背后的粒子若隐若现又不干扰
+   阅读（规范 §33）；亮色主题保持透明。 */
+:global(body[data-ds-dark-theme]) .centerCol {
+  background: linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.38));
 }
 
 .detailsCol {
   min-width: 0;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);
+  position: relative;
+  z-index: 1;
 }
 
 /* The details subtree stays mounted at zero width, so its border must not paint

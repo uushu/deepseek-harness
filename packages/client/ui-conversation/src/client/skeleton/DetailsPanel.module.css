@@ -11,6 +11,13 @@
   background: var(--dsw-alias-bg-base);
 }
 
+/* Harness 官网风（暗色系）：details 不是灰色后台面板 —— 与主工作区同一套
+   暗色半透明技术表面（规范 §56）。 */
+:global(body[data-ds-dark-theme]) .root {
+  background: linear-gradient(180deg, rgba(8, 16, 28, 0.82), rgba(6, 12, 21, 0.76));
+  backdrop-filter: blur(18px);
+}
+
 /* figma RightSidebar header frame (I54:42735;43:36451): pad 14/12/12/12, gap 8. */
 .header {
   display: flex;
