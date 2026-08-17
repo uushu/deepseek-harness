@@ -19,6 +19,13 @@ function pluginEntryId(value: string): PluginEntryId {
   return value as PluginEntryId
 }
 
+/** Whether one Loader entry is an mcp-client instance — owned by the MCP settings section, not the plugin list. */
+export function isMcpClientName(moduleName: string): boolean {
+  const normalized = moduleName.startsWith('cordis:') ? moduleName.slice(7) : moduleName
+  if (normalized === '@deepseek-ai/dsh-mcp-client') return true
+  return normalized.endsWith('/@deepseek-ai/dsh-mcp-client')
+}
+
 /** Runtime mirror: FiberState is a cross-package const enum. */
 const FIBER_STATE = {
   PENDING: 0 as FiberState.PENDING,
@@ -51,13 +58,15 @@ export class PluginInventoryGateway extends TypertRemoteService {
    * Read the Loader directly on every call. Cordis's internal plugin/status
    * events already maintain Entry.fiber and Fiber.state, so a second cache
    * would only add another lifecycle truth to keep synchronized.
-   * @returns Current non-group Loader entries in Loader order.
+   * @returns Current non-group Loader entries in Loader order, excluding the
+   * mcp-client server instances (configured and shown in the MCP section).
    */
   @Remote('list')
   list(): PluginInventorySnapshot {
     const entries: PluginInventoryEntry[] = []
     for (const entry of this.ctx.loader.entries()) {
       if (entry.options.group) continue
+      if (isMcpClientName(entry.options.name)) continue
       entries.push({
         entryId: pluginEntryId(entry.id),
         moduleName: entry.options.name,

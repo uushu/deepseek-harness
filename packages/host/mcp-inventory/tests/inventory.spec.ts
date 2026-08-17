@@ -2,12 +2,22 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context, type Plugin } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DSH_HOME_ENV } from '@deepseek-ai/dsh-home-paths'
 import McpInventoryGateway from '../src/index.ts'
+import { homePatchPath } from '../src/patch-store.ts'
 
 const contexts: Context[] = []
+const homes: string[] = []
+const previousHome = process.env[DSH_HOME_ENV]
 
 afterEach(async () => {
   await Promise.all(contexts.splice(0).map(ctx => ctx.fiber.dispose()))
+  for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true })
+  if (previousHome === undefined) Reflect.deleteProperty(process.env, DSH_HOME_ENV)
+  else process.env[DSH_HOME_ENV] = previousHome
 })
 
 const activePlugin: Plugin.Function = () => {}
@@ -53,7 +63,7 @@ const STDIO_CONFIG = {
 }
 
 describe('McpInventoryGateway', () => {
-  it('publishes list, upsert, and removeServer under the mcpInventory namespace', async () => {
+  it('publishes list, listConfig, upsert, and removeServer under the mcpInventory namespace', async () => {
     const { inventory } = await harness()
     expect(inventory.typertRemote).toMatchObject({
       serviceKey: 'mcpInventory',
@@ -61,9 +71,44 @@ describe('McpInventoryGateway', () => {
     })
     expect(remoteMethods(inventory)).toEqual([
       { method: 'list', invocation: { kind: 'direct' } },
+      { method: 'listConfig', invocation: { kind: 'direct' } },
       { method: 'upsert', invocation: { kind: 'direct' } },
       { method: 'removeServer', invocation: { kind: 'direct' } },
     ])
+  })
+
+  it('listConfig projects the patch-layer configured servers without fiber state', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-mcp-inv-'))
+    homes.push(home)
+    process.env[DSH_HOME_ENV] = home
+    writeFileSync(join(home, 'cordis.patch.yml'), [
+      '- insert:',
+      '    - id: mcp-fs',
+      "      name: '@deepseek-ai/dsh-mcp-client'",
+      '      config: { transport: stdio, serverName: fs, command: node, env: { TOKEN: secret } }',
+      '- id: other-plugin',
+      "  name: '@deepseek-ai/dsh-example'",
+    ].join('\n'), 'utf8')
+    const { inventory } = await harness()
+
+    const snapshot = inventory.listConfig()
+    expect(snapshot.entries).toEqual([
+      {
+        entryId: 'mcp-fs',
+        serverName: 'fs',
+        transport: 'stdio',
+        enabled: true,
+        fiberPhase: null,
+        command: 'node',
+        envKeys: ['TOKEN'],
+      },
+    ])
+    // The foreign row is not a config item, and secrets never cross the wire.
+    expect(JSON.stringify(snapshot)).not.toContain('other-plugin')
+    expect(JSON.stringify(snapshot)).not.toContain('secret')
+    // The loader view stays separate: nothing is loaded in the Loader yet.
+    expect(inventory.list().entries).toEqual([])
+    expect(homePatchPath()).toBe(join(home, 'cordis.patch.yml'))
   })
 
   it('projects only mcp-client Loader entries, redacting env and header values', async () => {

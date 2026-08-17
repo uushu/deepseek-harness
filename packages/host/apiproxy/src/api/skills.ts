@@ -59,8 +59,12 @@ export interface SkillRemoveResult {
  * dedicated invocation wire.
  */
 export interface SkillsApi {
-  /** Lists the user-invocable skill catalog for the session's project. */
-  list(request: RpcRequest<{ sessionId: SessionId }>): Promise<RpcResponse<{ skills: readonly SkillEntry[] }>>
+  /**
+   * Lists the skill catalog for the session's project. The composer surface
+   * (default) returns only user-invocable skills; the settings surface sets
+   * `includeInternal` to also expose model-only bundled/internal skills.
+   */
+  list(request: RpcRequest<{ sessionId: SessionId; includeInternal?: boolean }>): Promise<RpcResponse<{ skills: readonly SkillEntry[] }>>
   /** Create or replace one project skill file under `.dsh/skills`. */
   write(request: RpcRequest<{ sessionId: SessionId; skill: SkillWrite }>): Promise<RpcResponse<{ name: string }>>
   /** Read one project skill file's markdown body. */

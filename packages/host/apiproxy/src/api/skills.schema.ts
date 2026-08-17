@@ -22,6 +22,9 @@ export const skillEntrySchema = z.object({
 /** skill.list request payload. */
 export const skillListRequestSchema = z.object({
   sessionId: sessionIdSchema,
+  // Settings surface: also return model-only skills (bundled/internal) so the
+  // config/list tabs can expose them; the composer keeps the user-invocable view.
+  includeInternal: z.boolean().default(false),
 }) satisfies z.ZodType<Wire<RequestPayload<'skill.list'>>>
 
 /** skill.list response value. */

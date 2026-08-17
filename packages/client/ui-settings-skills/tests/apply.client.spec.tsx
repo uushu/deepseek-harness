@@ -130,7 +130,7 @@ describe('ui-settings-skills browser plugin', () => {
       sessionless: false,
       skills: [{ name: 'demo', description: 'd', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' }],
     })
-    expect(b.api.skills.list).toHaveBeenCalledWith({ sessionId: 's1' })
+    expect(b.api.skills.list).toHaveBeenCalledWith({ sessionId: 's1', includeInternal: true })
 
     b.api.skills.list.mockResolvedValueOnce({ result: { ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } } })
     await expect(injected.list()).rejects.toThrow('skills.list failed: REMOTE_ERROR: unavailable')

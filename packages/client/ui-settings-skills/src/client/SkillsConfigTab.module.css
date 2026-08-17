@@ -136,6 +136,13 @@
   outline-offset: -2px;
 }
 
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
 .cardTitle {
   min-width: 0;
   display: flex;

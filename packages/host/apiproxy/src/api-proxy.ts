@@ -3972,7 +3972,9 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // '/' popup lists the catalog its composition actually serves.
         const scope = await presenterScopeFor(sessionId, session)
         try {
-          const skills = (await skillRegistry.list({ cwd, scope })).filter(isUserInvocable)
+          const includeInternal = request.payload.includeInternal === true
+          const skills = (await skillRegistry.list({ cwd, scope }))
+            .filter(skill => includeInternal || isUserInvocable(skill))
           return ok(request, {
             skills: skills.map(skill => ({
               name: skill.name,

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SkillsConfigTab, type SkillsConfigTabInjected, type SkillsConfigTabProps } from '../src/client/SkillsConfigTab.tsx'
 import { SkillsListTab, type SkillsListTabInjected, type SkillsListTabProps } from '../src/client/SkillsListTab.tsx'
@@ -25,11 +25,19 @@ function configProps(injected: Partial<SkillsConfigTabInjected>): SkillsConfigTa
   } as SkillsConfigTabProps
 }
 
+/** The skill card for one name (or 'new'). */
+function cardOf(view: ReturnType<typeof render>, name: string): HTMLElement {
+  const card = view.container.querySelector<HTMLElement>(`[data-skill="${name}"]`)
+  if (card === null) throw new Error(`missing skill card ${name}`)
+  return card
+}
+
 const RESULT: Result = {
   sessionless: false,
   skills: [
     { name: 'demo', description: 'Demo skill', whenToUse: 'when demoing', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' },
     { name: 'user-only', description: 'User skill', modelInvocable: false, provider: 'filesystem', source: 'user-dsh' },
+    { name: 'bundled', description: 'Internal skill', modelInvocable: true, provider: 'filesystem', source: 'bundled' },
   ],
 }
 
@@ -42,8 +50,8 @@ describe('SkillsListTab', () => {
 
     await act(async () => { deferred.resolve(RESULT) })
     expect(list).toHaveBeenCalledOnce()
-    expect(screen.getAllByRole('listitem')).toHaveLength(2)
-    expect(screen.getAllByText(en.modelInvocableTag)).toHaveLength(1)
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getAllByText(en.modelInvocableTag)).toHaveLength(2)
     expect(screen.getByText(en.userOnlyTag)).toBeTruthy()
 
     const demo = screen.getByRole('button', { name: `demo, ${en.modelInvocableTag}` })
@@ -101,68 +109,105 @@ describe('SkillsListTab', () => {
 })
 
 describe('SkillsConfigTab', () => {
-  it('groups skills by provider and source with editable cards', async () => {
-    const deferred = Promise.withResolvers<Result>()
-    const list = vi.fn(() => deferred.promise)
-    render(<SkillsConfigTab {...configProps({ list })} />)
-    expect(screen.getByText(en.loading)).toBeTruthy()
+  it('lists only project-owned skills with editable forms plus the new-skill form', async () => {
+    const view = render(<SkillsConfigTab {...configProps({})} />)
+    expect(await screen.findByText('demo')).toBeTruthy()
 
-    await act(async () => { deferred.resolve(RESULT) })
-    expect(list).toHaveBeenCalledOnce()
-    expect(screen.getByRole('button', { name: en.addSkill })).toBeTruthy()
-    expect(screen.getAllByText('filesystem')).toHaveLength(2)
-    expect(screen.getByText('project-dsh')).toBeTruthy()
-    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    // Non-project skills are not config items: exposed read-only on the list tab.
+    expect(screen.queryByText('user-only')).toBeNull()
+    expect(screen.queryByText('bundled')).toBeNull()
+    // No add button; the new-skill form is always visible and open.
+    expect(screen.queryByRole('button', { name: en.addSkill })).toBeNull()
+    expect(view.container.querySelector('[data-skill="new"]')?.getAttribute('data-open')).toBe('true')
 
-    const demo = screen.getByRole('button', { name: `demo, ${en.modelInvocableTag}` })
-    fireEvent.click(demo)
-    expect(demo.getAttribute('aria-expanded')).toBe('true')
-    expect((screen.getByLabelText<HTMLInputElement>(en.nameLabel)).value).toBe('demo')
-    expect((screen.getByLabelText<HTMLInputElement>(en.descriptionLabel)).value).toBe('Demo skill')
-    expect((screen.getByLabelText<HTMLInputElement>(en.whenToUse)).value).toBe('when demoing')
-    expect((screen.getByLabelText<HTMLInputElement>(en.modelInvocableTag)).checked).toBe(true)
+    const demo = cardOf(view, 'demo')
+    expect(demo.getAttribute('data-open')).toBe('false')
+    fireEvent.click(within(demo).getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
+    expect(demo.getAttribute('data-open')).toBe('true')
+    expect((within(demo).getByLabelText<HTMLInputElement>(en.nameLabel)).value).toBe('demo')
+    expect((within(demo).getByLabelText<HTMLInputElement>(en.descriptionLabel)).value).toBe('Demo skill')
+    expect((within(demo).getByLabelText<HTMLInputElement>(en.whenToUse)).value).toBe('when demoing')
+    expect((within(demo).getByLabelText<HTMLInputElement>(en.modelInvocableTag)).checked).toBe(true)
     // The body loads asynchronously after expand.
     expect(await screen.findByDisplayValue('body content')).toBeTruthy()
     // Clicking the open card again collapses it.
-    fireEvent.click(screen.getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
-    expect(screen.getByRole('button', { name: `demo, ${en.modelInvocableTag}` }).getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(within(demo).getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
+    expect(demo.getAttribute('data-open')).toBe('false')
+  })
+
+  it('badges a user-only project skill and keeps its blank guidance', async () => {
+    const view = render(<SkillsConfigTab {...configProps({
+      list: async () => ({
+        sessionless: false,
+        skills: [
+          { name: 'demo-user', description: 'User demo', modelInvocable: false, provider: 'filesystem', source: 'project-dsh' },
+        ],
+      }),
+    })} />)
+    await screen.findByText('demo-user')
+    const card = cardOf(view, 'demo-user')
+    fireEvent.click(within(card).getByRole('button', { name: `demo-user, ${en.userOnlyTag}` }))
+    expect((within(card).getByLabelText<HTMLInputElement>(en.whenToUse)).value).toBe('')
+    expect((within(card).getByLabelText<HTMLInputElement>(en.modelInvocableTag)).checked).toBe(false)
+  })
+
+  it('shows the empty state when no project skills exist but the new form stays', async () => {
+    const view = render(<SkillsConfigTab {...configProps({
+      list: async () => ({ sessionless: false, skills: [RESULT.skills[1]!, RESULT.skills[2]!] }),
+    })} />)
+    expect(await screen.findByText(en.empty)).toBeTruthy()
+    expect(view.container.querySelector('[data-skill="new"]')).toBeTruthy()
   })
 
   it('handles a body read failure without crashing', async () => {
     const read = vi.fn<SkillsConfigTabInjected['read']>().mockRejectedValue(new Error('read exploded'))
-    render(<SkillsConfigTab {...configProps({ read })} />)
+    const view = render(<SkillsConfigTab {...configProps({ read })} />)
     await screen.findByText('demo')
 
-    fireEvent.click(screen.getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
+    const demo = cardOf(view, 'demo')
+    fireEvent.click(within(demo).getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
     await waitFor(() => { expect(read).toHaveBeenCalledWith('demo') })
     // The failure path clears the loading flag and the form stays usable.
-    expect((screen.getByLabelText<HTMLInputElement>(en.nameLabel)).value).toBe('demo')
+    expect((within(demo).getByLabelText<HTMLInputElement>(en.nameLabel)).value).toBe('demo')
   })
 
   it('saves an edited existing skill through write', async () => {
     const write = vi.fn<SkillsConfigTabInjected['write']>().mockResolvedValue({ name: 'demo' })
-    render(<SkillsConfigTab {...configProps({ write })} />)
+    const view = render(<SkillsConfigTab {...configProps({ write })} />)
     await screen.findByText('demo')
 
-    fireEvent.click(screen.getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.descriptionLabel), { target: { value: 'Updated' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const demo = cardOf(view, 'demo')
+    fireEvent.click(within(demo).getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
+    fireEvent.change(within(demo).getByLabelText<HTMLInputElement>(en.descriptionLabel), { target: { value: 'Updated' } })
+    fireEvent.click(within(demo).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(write).toHaveBeenCalledWith(expect.objectContaining({ name: 'demo', description: 'Updated' }))
     })
   })
 
-  it('saves a new skill without a when-to-use line', async () => {
-    const write = vi.fn<SkillsConfigTabInjected['write']>().mockResolvedValue({ name: 'fresh' })
-    render(<SkillsConfigTab {...configProps({ write })} />)
+  it('deletes an existing skill through remove', async () => {
+    const remove = vi.fn<SkillsConfigTabInjected['remove']>().mockResolvedValue({ removed: true })
+    const view = render(<SkillsConfigTab {...configProps({ remove })} />)
     await screen.findByText('demo')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addSkill }))
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.nameLabel), { target: { value: 'fresh' } })
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.descriptionLabel), { target: { value: 'A fresh skill' } })
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.contentLabel), { target: { value: 'Fresh body' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const demo = cardOf(view, 'demo')
+    fireEvent.click(within(demo).getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
+    fireEvent.click(within(demo).getByRole('button', { name: en.deleteSkill }))
+
+    await waitFor(() => { expect(remove).toHaveBeenCalledWith('demo') })
+  })
+
+  it('saves a new skill without a when-to-use line', async () => {
+    const write = vi.fn<SkillsConfigTabInjected['write']>().mockResolvedValue({ name: 'fresh' })
+    const view = render(<SkillsConfigTab {...configProps({ write })} />)
+    await screen.findByText('demo')
+
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.nameLabel), { target: { value: 'fresh' } })
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.descriptionLabel), { target: { value: 'A fresh skill' } })
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.contentLabel), { target: { value: 'Fresh body' } })
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(write).toHaveBeenCalledWith({
@@ -174,29 +219,18 @@ describe('SkillsConfigTab', () => {
     })
   })
 
-  it('closes the new-skill card from its header', async () => {
-    const view = render(<SkillsConfigTab {...configProps({})} />)
-    await screen.findByText('demo')
-
-    fireEvent.click(screen.getByRole('button', { name: en.addSkill }))
-    const newCard = view.container.querySelector<HTMLElement>('[data-skill="new"]')
-    expect(newCard?.getAttribute('data-open')).toBe('true')
-    fireEvent.click(newCard!.querySelector('button')!)
-    expect(view.container.querySelector('[data-skill="new"]')).toBeNull()
-  })
-
-  it('saves a new skill through write and refreshes', async () => {
+  it('saves a new skill with when-to-use and model toggle', async () => {
     const write = vi.fn<SkillsConfigTabInjected['write']>().mockResolvedValue({ name: 'fresh' })
-    render(<SkillsConfigTab {...configProps({ write })} />)
+    const view = render(<SkillsConfigTab {...configProps({ write })} />)
     await screen.findByText('demo')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addSkill }))
-    fireEvent.change(screen.getByLabelText(en.nameLabel), { target: { value: 'fresh' } })
-    fireEvent.change(screen.getByLabelText(en.descriptionLabel), { target: { value: 'A fresh skill' } })
-    fireEvent.change(screen.getByLabelText(en.whenToUse), { target: { value: 'when fresh' } })
-    fireEvent.click(screen.getByLabelText(en.modelInvocableTag))
-    fireEvent.change(screen.getByLabelText(en.contentLabel), { target: { value: 'Fresh body' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText(en.nameLabel), { target: { value: 'fresh' } })
+    fireEvent.change(within(fresh).getByLabelText(en.descriptionLabel), { target: { value: 'A fresh skill' } })
+    fireEvent.change(within(fresh).getByLabelText(en.whenToUse), { target: { value: 'when fresh' } })
+    fireEvent.click(within(fresh).getByLabelText(en.modelInvocableTag))
+    fireEvent.change(within(fresh).getByLabelText(en.contentLabel), { target: { value: 'Fresh body' } })
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(write).toHaveBeenCalledWith({
@@ -212,26 +246,15 @@ describe('SkillsConfigTab', () => {
 
   it('rejects an invalid new skill without calling write', async () => {
     const write = vi.fn<SkillsConfigTabInjected['write']>()
-    render(<SkillsConfigTab {...configProps({ write })} />)
+    const view = render(<SkillsConfigTab {...configProps({ write })} />)
     await screen.findByText('demo')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addSkill }))
-    fireEvent.change(screen.getByLabelText(en.nameLabel), { target: { value: 'only-name' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText(en.nameLabel), { target: { value: 'only-name' } })
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     expect((await screen.findByRole('alert')).textContent).toBe(en.invalidSkill)
     expect(write).not.toHaveBeenCalled()
-  })
-
-  it('deletes an existing skill through remove', async () => {
-    const remove = vi.fn<SkillsConfigTabInjected['remove']>().mockResolvedValue({ removed: true })
-    render(<SkillsConfigTab {...configProps({ remove })} />)
-    await screen.findByText('demo')
-
-    fireEvent.click(screen.getByRole('button', { name: `demo, ${en.modelInvocableTag}` }))
-    fireEvent.click(screen.getByRole('button', { name: en.deleteSkill }))
-
-    await waitFor(() => { expect(remove).toHaveBeenCalledWith('demo') })
   })
 
   it('shows the sessionless and empty states and fails loudly with retry', async () => {
@@ -289,5 +312,11 @@ describe('groupSkills', () => {
       ] },
     ])
     expect(groups.map(group => group.skills.length)).toEqual([2, 1])
+    // Same provider, different source: the source tie-break orders the groups.
+    const tied = groupSkills([
+      { name: 'x', description: 'x', modelInvocable: true, provider: 'filesystem', source: 'bundled' },
+      { name: 'y', description: 'y', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' },
+    ])
+    expect(tied.map(group => group.source)).toEqual(['bundled', 'project-dsh'])
   })
 })

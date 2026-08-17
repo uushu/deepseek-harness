@@ -43,12 +43,14 @@ async function bench() {
   new RemoteService(ctx)
   const list = vi.fn<() => Promise<ListResult>>()
     .mockResolvedValue({ ok: true, value: EMPTY })
+  const listConfig = vi.fn<() => Promise<ListResult>>()
+    .mockResolvedValue({ ok: true, value: EMPTY })
   const upsert = vi.fn<() => Promise<WriteResult>>()
     .mockResolvedValue({ ok: true, value: { entryId: 'mcp-fs', serverName: 'fs', transport: 'stdio', enabled: true, fiberPhase: null } })
   const removeServer = vi.fn<() => Promise<RemoveResult>>()
     .mockResolvedValue({ ok: true, value: { removed: true } })
-  ctx.provide('remote.mcpInventory', { list, upsert, removeServer })
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, list, upsert, removeServer }
+  ctx.provide('remote.mcpInventory', { list, listConfig, upsert, removeServer })
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, list, listConfig, upsert, removeServer }
 }
 
 /** Declare the settings-section seat the section registers into. */
@@ -119,12 +121,13 @@ describe('ui-settings-mcp browser plugin', () => {
     b.locale.setLocale('en')
     expect(sectionFace.hooks.tabs.getSnapshot()[0]?.label).toBe('MCP configuration')
 
-    // Both tab faces share the Remote-backed list; success and failure paths.
+    // The config tab reads the patch-backed listConfig; the inventory tab the
+    // live loader list. Success and failure paths.
     const configFace = (tabsOf(b)[0]!.inject as unknown as () => McpConfigTabInjected)()
-    await expect(configFace.list()).resolves.toEqual(EMPTY)
-    b.list.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
-    await expect(configFace.list()).rejects.toThrow('mcpInventory.list failed: REMOTE_ERROR: unavailable')
-    expect(b.list).toHaveBeenCalledTimes(2)
+    await expect(configFace.listConfig()).resolves.toEqual(EMPTY)
+    b.listConfig.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
+    await expect(configFace.listConfig()).rejects.toThrow('mcpInventory.listConfig failed: REMOTE_ERROR: unavailable')
+    expect(b.listConfig).toHaveBeenCalledTimes(2)
 
     // The write face forwards upsert and removeServer with the same discipline.
     await expect(configFace.upsert({ transport: 'stdio', serverName: 'fs', command: 'node' })).resolves

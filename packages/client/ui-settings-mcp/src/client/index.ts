@@ -55,6 +55,16 @@ export function apply(ctx: ClientContext): void {
     }
     return result.value
   }
+  // The config tab edits the PATCH configuration items (listConfig); the
+  // inventory tab shows the live loader instances (list). A configured server
+  // only appears in the list once the config HMR has created its fiber.
+  const listConfig = async (): Promise<McpInventorySnapshot> => {
+    const result = await ctx.remote.mcpInventory.listConfig()
+    if (!result.ok) {
+      throw new Error(`mcpInventory.listConfig failed: ${result.error.code}: ${result.error.message}`)
+    }
+    return result.value
+  }
   const upsert = async (config: McpServerConfigInput): Promise<McpServerView> => {
     const result = await ctx.remote.mcpInventory.upsert(config)
     if (!result.ok) {
@@ -69,7 +79,7 @@ export function apply(ctx: ClientContext): void {
     }
     return result.value
   }
-  const configInjected = (): McpConfigTabInjected => ({ list, upsert, removeServer })
+  const configInjected = (): McpConfigTabInjected => ({ listConfig, upsert, removeServer })
   const inventoryInjected = (): McpInventoryTabInjected => ({ list })
 
   let tabsVersion = -1

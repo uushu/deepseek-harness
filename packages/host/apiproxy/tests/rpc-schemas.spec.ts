@@ -416,7 +416,8 @@ describe('workspace domain schemas', () => {
 
 describe('skills domain schemas', () => {
   it('validates the list request/value pair', () => {
-    expect(skillListRequestSchema.parse({ sessionId: 's1' })).toEqual({ sessionId: 's1' })
+    expect(skillListRequestSchema.parse({ sessionId: 's1' })).toEqual({ sessionId: 's1', includeInternal: false })
+    expect(skillListRequestSchema.parse({ sessionId: 's1', includeInternal: true })).toEqual({ sessionId: 's1', includeInternal: true })
     // The wire is session-addressed only: a sessionId-less payload fails.
     expect(() => skillListRequestSchema.parse({})).toThrow()
     expect(skillListValueSchema.parse({ skills: [] }).skills).toEqual([])

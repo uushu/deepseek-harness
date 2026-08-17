@@ -6,7 +6,7 @@ export type SkillsSettingsLocaleKey =
   | 'loading' | 'error' | 'retry' | 'empty' | 'noSession'
   | 'modelInvocableTag' | 'userOnlyTag' | 'provider' | 'source' | 'whenToUse'
   | 'sources' | 'skills'
-  | 'addSkill' | 'save' | 'saving' | 'deleteSkill' | 'cancel' | 'saved'
+  | 'addSkill' | 'newSkill' | 'save' | 'saving' | 'deleteSkill' | 'cancel' | 'saved'
   | 'invalidSkill' | 'loadingBody' | 'deleteHint' | 'contentLabel' | 'nameLabel' | 'descriptionLabel'
 
 /** Simplified Chinese dictionary and key source of truth. */
@@ -30,6 +30,7 @@ export const zh = {
   sources: '来源分组',
   skills: '技能',
   addSkill: '新建技能',
+  newSkill: '新建技能',
   save: '保存',
   saving: '保存中…',
   deleteSkill: '删除',
@@ -64,6 +65,7 @@ export const en: Record<SkillsSettingsLocaleKey, string> = {
   sources: 'By source',
   skills: 'Skills',
   addSkill: 'New skill',
+  newSkill: 'New skill',
   save: 'Save',
   saving: 'Saving…',
   deleteSkill: 'Delete',

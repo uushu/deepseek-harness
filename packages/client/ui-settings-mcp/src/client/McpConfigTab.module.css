@@ -1,4 +1,4 @@
-/* MCP configuration tab: expandable editable server cards. */
+/* MCP configuration tab: directly editable server forms. */
 
 .section {
   display: flex;
@@ -41,26 +41,6 @@
   gap: 10px;
 }
 
-.addButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  padding: 6px 12px;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.addButton:hover {
-  border-color: var(--dsw-alias-state-business-primary);
-  color: var(--dsw-alias-state-business-primary);
-}
-
 .cards {
   list-style: none;
   margin: 0;
@@ -77,24 +57,12 @@
   overflow: hidden;
 }
 
-.cardContent {
+.cardHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  border: 0;
+  gap: 10px;
   padding: 12px 14px;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.cardContent:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: -2px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
 .cardTitle {
@@ -106,78 +74,16 @@
   font-weight: 600;
 }
 
-.cardTrailing {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .transportTag {
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
-}
-
-.statusDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--dsw-alias-state-neutral);
-}
-
-.statusDot[data-phase='active'] {
-  background: var(--dsw-alias-state-success);
-}
-
-.statusDot[data-phase='failed'] {
-  background: var(--dsw-alias-state-danger);
-}
-
-.statusDot[data-phase='loading'],
-.statusDot[data-phase='pending'],
-.statusDot[data-phase='unloading'],
-.statusDot[data-phase='unobserved'] {
-  background: var(--dsw-alias-state-warning);
-}
-
-.configTag {
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.configTag[data-enabled='true'] {
-  background: var(--dsw-alias-state-success-weak);
-  color: var(--dsw-alias-state-success);
-}
-
-.configTag[data-enabled='false'] {
-  background: var(--dsw-alias-state-neutral-weak);
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.chevron {
-  color: var(--dsw-alias-label-tertiary);
-  transition: transform 120ms ease;
-}
-
-.card[data-open='true'] .chevron {
-  transform: rotate(180deg);
-}
-
-.cardDetails {
-  border-top: 1px solid var(--dsw-alias-border-l1);
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .entryValue {
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
   overflow-wrap: anywhere;
+  margin-left: auto;
 }
 
 .notice {
@@ -202,6 +108,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 12px 14px;
 }
 
 .field {

@@ -296,6 +296,40 @@ describe('a capability the session\'s preset mounts', () => {
     services.delete('k1')
   })
 
+  it('hides model-only skills unless the settings surface asks for them', async () => {
+    const { api } = await harness(['standard'])
+    await api.sessions.create(request({ sessionId: SessionId('k2'), agentPreset: 'standard' }))
+    services.set('k2', {
+      skills: {
+        list: () => Promise.resolve([
+          {
+            name: 'user-skill',
+            description: 'invocable by the composer',
+            invocation: { modelInvocable: true, userInvocable: true },
+          },
+          {
+            name: 'internal-skill',
+            description: 'model-only bundled skill',
+            invocation: { modelInvocable: true, userInvocable: false },
+          },
+        ]),
+      },
+    })
+
+    const plain = await api.skills.list(request({ sessionId: SessionId('k2') }))
+    expect(plain.result).toMatchObject({
+      ok: true,
+      value: { skills: [{ name: 'user-skill' }] },
+    })
+
+    const settings = await api.skills.list(request({ sessionId: SessionId('k2'), includeInternal: true }))
+    expect(settings.result).toMatchObject({
+      ok: true,
+      value: { skills: [{ name: 'user-skill' }, { name: 'internal-skill' }] },
+    })
+    services.delete('k2')
+  })
+
   it('says so when no composition mounts the capability at all', async () => {
     const { api } = await harness(['standard'])
     await api.sessions.create(request({ sessionId: SessionId('n1'), agentPreset: 'standard' }))

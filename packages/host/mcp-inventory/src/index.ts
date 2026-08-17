@@ -214,6 +214,26 @@ export class McpInventoryGateway extends TypertRemoteService {
   }
 
   /**
+   * Read the CONFIGURED servers from the home-level user patch layer — the
+   * items the settings config tab edits — without any loader/fiber state.
+   * The loader view is served by {@link list}; a configured server only shows
+   * there once its fiber has been created (config HMR applies the patch live).
+   * @returns The patch-layer MCP entries in file order, secrets redacted.
+   */
+  @Remote('listConfig')
+  listConfig(): McpInventorySnapshot {
+    const entries = readHomePatchEntries()
+      .filter(entry => isMcpClientEntry(entry.name))
+      .map(entry => ({
+        entryId: mcpEntryId(entry.id),
+        enabled: true,
+        fiberPhase: null,
+        ...projectConfig(entry.config),
+      }))
+    return { entries }
+  }
+
+  /**
    * Create or replace one MCP server in the home-level user patch layer. The
    * launcher's config HMR restarts the mcp-client fiber with the new config,
    * so a persisted edit takes effect without a process restart. Secrets the

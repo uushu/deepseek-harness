@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { McpInventorySnapshot, McpServerView } from '@deepseek-ai/dsh-api-remotes/client'
 import {
@@ -19,7 +19,7 @@ const t = ((key: McpSettingsLocaleKey): string => en[key]) as McpConfigTabProps[
 function configProps(injected: Partial<McpConfigTabInjected>): McpConfigTabProps {
   return {
     t,
-    list: injected.list ?? (async () => SNAPSHOT),
+    listConfig: injected.listConfig ?? (async () => SNAPSHOT),
     upsert: injected.upsert ?? (async () => SNAPSHOT.entries[0]!),
     removeServer: injected.removeServer ?? (async () => ({ removed: true })),
   } as McpConfigTabProps
@@ -27,6 +27,13 @@ function configProps(injected: Partial<McpConfigTabInjected>): McpConfigTabProps
 
 function inventoryProps(list: McpInventoryTabInjected['list']): McpInventoryTabProps {
   return { t, list } as McpInventoryTabProps
+}
+
+/** The always-open form card for one server id (or 'new'). */
+function cardOf(view: ReturnType<typeof render>, id: string): HTMLElement {
+  const card = view.container.querySelector<HTMLElement>(`[data-mcp-server="${id}"]`)
+  if (card === null) throw new Error(`missing mcp card ${id}`)
+  return card
 }
 
 const SNAPSHOT = {
@@ -53,55 +60,65 @@ const HTTP_SNAPSHOT = {
 } as unknown as Snapshot
 
 describe('McpConfigTab', () => {
-  it('renders the editable server cards with status and disclosure', async () => {
-    const deferred = Promise.withResolvers<Snapshot>()
-    const list = vi.fn(() => deferred.promise)
-    const view = render(<McpConfigTab {...configProps({ list })} />)
-    expect(screen.getByText(en.loading)).toBeTruthy()
+  it('renders every configured server as an open form plus the new-server form', async () => {
+    const view = render(<McpConfigTab {...configProps({})} />)
+    expect(await screen.findByText('fs')).toBeTruthy()
 
-    await act(async () => { deferred.resolve(SNAPSHOT) })
-    expect(list).toHaveBeenCalledOnce()
-    expect(screen.getByRole('button', { name: en.addServer })).toBeTruthy()
-    expect(screen.getAllByRole('listitem')).toHaveLength(3)
-    expect(screen.getByText('fs')).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Mounted' })).toBeTruthy()
+    // No add button and no collapsed cards: every configured server shows its
+    // form directly, and the new-server form is always present.
+    expect(screen.queryByRole('button', { name: en.addServer })).toBeNull()
+    for (const id of ['mcp-fs', 'mcp-off', 'mcp-bare', 'new']) {
+      expect(view.container.querySelector(`[data-mcp-server="${id}"]`)?.getAttribute('data-open')).toBe('true')
+    }
 
-    const fsCard = screen.getByRole('button', { name: 'fs, stdio process, Enabled' })
-    fireEvent.click(fsCard)
-    expect(fsCard.getAttribute('aria-expanded')).toBe('true')
-    // The form shows the stored config values.
-    expect((screen.getByLabelText<HTMLInputElement>(en.serverName)).value).toBe('fs')
-    expect((screen.getByLabelText<HTMLInputElement>(en.command)).value).toBe('node')
-    expect((screen.getByLabelText<HTMLInputElement>(en.args)).value).toBe('server.mjs')
-    expect((screen.getByLabelText<HTMLInputElement>(en.cwd)).value).toBe('/srv')
-    expect((screen.getByLabelText<HTMLInputElement>(en.toolCallTimeoutMs)).value).toBe('30000')
-    expect((screen.getByLabelText<HTMLInputElement>(en.reconnect)).checked).toBe(true)
-    expect((screen.getByLabelText<HTMLInputElement>(en.initialDelayMs)).value).toBe('100')
-    expect(view.container.querySelector('[data-mcp-server="mcp-fs"]')?.getAttribute('data-open')).toBe('true')
+    const fs = cardOf(view, 'mcp-fs')
+    expect((within(fs).getByLabelText<HTMLInputElement>(en.serverName)).value).toBe('fs')
+    expect((within(fs).getByLabelText<HTMLInputElement>(en.command)).value).toBe('node')
+    expect((within(fs).getByLabelText<HTMLInputElement>(en.args)).value).toBe('server.mjs')
+    expect((within(fs).getByLabelText<HTMLInputElement>(en.cwd)).value).toBe('/srv')
+    expect((within(fs).getByLabelText<HTMLInputElement>(en.toolCallTimeoutMs)).value).toBe('30000')
+    expect((within(fs).getByLabelText<HTMLInputElement>(en.reconnect)).checked).toBe(true)
+    expect((within(fs).getByLabelText<HTMLInputElement>(en.initialDelayMs)).value).toBe('100')
+    expect((within(fs).getByLabelText<HTMLInputElement>(en.failOnStartupError)).checked).toBe(true)
+    // Stored env key retained, secret value redacted.
+    expect((within(fs).getAllByLabelText('key')[0] as HTMLInputElement).value).toBe('TOKEN')
+    expect(within(fs).getAllByPlaceholderText(en.secretPlaceholder)).toHaveLength(1)
 
-    fireEvent.click(fsCard)
-    expect(view.container.querySelector('[data-mcp-server="mcp-fs"]')?.getAttribute('data-open')).toBe('false')
-
-    // A server with no config fields still opens with draft defaults.
-    const bare = screen.getByRole('button', { name: `${en.newServer}, , ${en.enabledTag}` })
-    fireEvent.click(bare)
-    expect((screen.getByLabelText<HTMLInputElement>(en.serverName)).value).toBe('')
-    expect((screen.getByLabelText<HTMLInputElement>(en.command)).value).toBe('')
+    // The new-server form starts blank.
+    const fresh = cardOf(view, 'new')
+    expect((within(fresh).getByLabelText<HTMLInputElement>(en.serverName)).value).toBe('')
+    expect((within(fresh).getByLabelText<HTMLInputElement>(en.command)).value).toBe('')
   })
 
-  it('saves a new server through upsert and closes the card', async () => {
+  it('shows only the new-server form when nothing is configured', async () => {
+    const view = render(<McpConfigTab {...configProps({ listConfig: async () => ({ entries: [] }) })} />)
+    expect(await screen.findByText(en.newServer)).toBeTruthy()
+    expect(view.container.querySelector('[data-mcp-server="new"]')).toBeTruthy()
+    expect(view.container.querySelectorAll('[data-mcp-server]')).toHaveLength(1)
+  })
+
+  it('renders a configured http server with stored header keys redacted', async () => {
+    const view = render(<McpConfigTab {...configProps({ listConfig: async () => HTTP_SNAPSHOT })} />)
+    await screen.findByText('remote')
+
+    const http = cardOf(view, 'mcp-http')
+    expect((within(http).getByLabelText<HTMLInputElement>(en.url)).value).toBe('https://x')
+    expect((within(http).getAllByLabelText('key')[0] as HTMLInputElement).value).toBe('Authorization')
+    expect(within(http).getAllByPlaceholderText(en.secretPlaceholder)).toHaveLength(1)
+  })
+
+  it('saves a new server through upsert and joins the local snapshot', async () => {
     const upsert = vi.fn<McpConfigTabInjected['upsert']>()
       .mockResolvedValue({ entryId: 'mcp-new', serverName: 'new', transport: 'stdio', enabled: true, fiberPhase: null, command: 'python' } as McpServerView)
-    render(<McpConfigTab {...configProps({ upsert })} />)
+    const view = render(<McpConfigTab {...configProps({ upsert })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addServer }))
-    const name = screen.getByLabelText(en.serverName)
-    fireEvent.change(name, { target: { value: 'new' } })
-    fireEvent.change(screen.getByLabelText(en.command), { target: { value: 'python' } })
-    fireEvent.change(screen.getByLabelText(en.args), { target: { value: 'server.py, --port 4000' } })
-    fireEvent.change(screen.getByLabelText(en.cwd), { target: { value: '/opt' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'new' } })
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.command), { target: { value: 'python' } })
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.args), { target: { value: 'server.py, --port 4000' } })
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.cwd), { target: { value: '/opt' } })
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -113,18 +130,18 @@ describe('McpConfigTab', () => {
       }))
     })
     expect(await screen.findByText(en.saved)).toBeTruthy()
-    // The upserted server joins the local snapshot.
-    expect(screen.getByText('new')).toBeTruthy()
+    // The upserted server joins the local config list.
+    expect(view.container.querySelector('[data-mcp-server="mcp-new"]')).toBeTruthy()
   })
 
   it('rejects an invalid new server without calling upsert', async () => {
     const upsert = vi.fn<McpConfigTabInjected['upsert']>()
-    render(<McpConfigTab {...configProps({ upsert })} />)
+    const view = render(<McpConfigTab {...configProps({ upsert })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addServer }))
-    fireEvent.change(screen.getByLabelText(en.serverName), { target: { value: 'n' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'n' } })
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     expect((await screen.findByRole('alert')).textContent).toBe(en.invalidServer)
     expect(upsert).not.toHaveBeenCalled()
@@ -132,14 +149,23 @@ describe('McpConfigTab', () => {
 
   it('deletes an existing server through removeServer', async () => {
     const removeServer = vi.fn<McpConfigTabInjected['removeServer']>().mockResolvedValue({ removed: true })
-    render(<McpConfigTab {...configProps({ removeServer })} />)
+    const view = render(<McpConfigTab {...configProps({ removeServer })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: 'fs, stdio process, Enabled' }))
-    fireEvent.click(screen.getByRole('button', { name: en.deleteServer }))
+    fireEvent.click(within(cardOf(view, 'mcp-fs')).getByRole('button', { name: en.deleteServer }))
 
     await waitFor(() => { expect(removeServer).toHaveBeenCalledWith('fs') })
-    expect(screen.queryByText('fs')).toBeNull()
+    expect(view.container.querySelector('[data-mcp-server="mcp-fs"]')).toBeNull()
+  })
+
+  it('deletes a server whose name is unparsed', async () => {
+    const removeServer = vi.fn<McpConfigTabInjected['removeServer']>().mockResolvedValue({ removed: true })
+    const view = render(<McpConfigTab {...configProps({ removeServer })} />)
+    await screen.findByText('fs')
+
+    fireEvent.click(within(cardOf(view, 'mcp-bare')).getByRole('button', { name: en.deleteServer }))
+
+    await waitFor(() => { expect(removeServer).toHaveBeenCalledWith('') })
   })
 
   it('keeps stored env keys with the secret placeholder and submits new rows', async () => {
@@ -148,16 +174,16 @@ describe('McpConfigTab', () => {
     const view = render(<McpConfigTab {...configProps({ upsert })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: 'fs, stdio process, Enabled' }))
-    expect((screen.getAllByLabelText('key')[0] as HTMLInputElement).value).toBe('TOKEN')
-    expect(screen.getAllByPlaceholderText(en.secretPlaceholder)).toHaveLength(1)
+    const fs = cardOf(view, 'mcp-fs')
+    expect((within(fs).getAllByLabelText('key')[0] as HTMLInputElement).value).toBe('TOKEN')
+    expect(within(fs).getAllByPlaceholderText(en.secretPlaceholder)).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: en.addRow }))
-    const rows = screen.getAllByLabelText('key')
+    fireEvent.click(within(fs).getByRole('button', { name: en.addRow }))
+    const rows = within(fs).getAllByLabelText('key')
     fireEvent.change(rows[1]!, { target: { value: 'DEBUG' } })
-    const secretValues = view.container.querySelectorAll<HTMLInputElement>('input[type="password"]')
+    const secretValues = fs.querySelectorAll<HTMLInputElement>('input[type="password"]')
     fireEvent.change(secretValues[1]!, { target: { value: '1' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    fireEvent.click(within(fs).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -168,22 +194,50 @@ describe('McpConfigTab', () => {
     })
   })
 
+  it('drops a blank-key secret row on submit', async () => {
+    const upsert = vi.fn<McpConfigTabInjected['upsert']>()
+      .mockResolvedValue({ entryId: 'mcp-fs', serverName: 'fs', transport: 'stdio', enabled: true, fiberPhase: null } as McpServerView)
+    const view = render(<McpConfigTab {...configProps({ upsert })} />)
+    await screen.findByText('fs')
+
+    const fs = cardOf(view, 'mcp-fs')
+    fireEvent.click(within(fs).getByRole('button', { name: en.addRow }))
+    const secretValues = fs.querySelectorAll<HTMLInputElement>('input[type="password"]')
+    fireEvent.change(secretValues[1]!, { target: { value: 'x' } })
+    fireEvent.click(within(fs).getByRole('button', { name: en.save }))
+
+    await waitFor(() => {
+      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ env: { TOKEN: '' } }))
+    })
+  })
+
+  it('removes a secret row again after adding one', async () => {
+    const view = render(<McpConfigTab {...configProps({})} />)
+    await screen.findByText('fs')
+
+    const fs = cardOf(view, 'mcp-fs')
+    fireEvent.click(within(fs).getByRole('button', { name: en.addRow }))
+    expect(within(fs).getAllByLabelText('key')).toHaveLength(2)
+    fireEvent.click(within(fs).getAllByRole('button', { name: en.removeRow })[1]!)
+    expect(within(fs).getAllByLabelText('key')).toHaveLength(1)
+  })
+
   it('saves a new streamable-http server with headers', async () => {
     const upsert = vi.fn<McpConfigTabInjected['upsert']>()
       .mockResolvedValue({ entryId: 'mcp-http', serverName: 'remote', transport: 'streamable-http', enabled: true, fiberPhase: null, url: 'https://x' } as McpServerView)
-    render(<McpConfigTab {...configProps({ upsert })} />)
+    const view = render(<McpConfigTab {...configProps({ upsert })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addServer }))
-    fireEvent.change(screen.getByLabelText(en.serverName), { target: { value: 'remote' } })
-    fireEvent.click(screen.getByLabelText(en.transportHttp))
-    fireEvent.change(screen.getByLabelText(en.url), { target: { value: 'https://x' } })
-    fireEvent.click(screen.getByRole('button', { name: en.addRow }))
-    const rows = screen.getAllByLabelText('key')
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'remote' } })
+    fireEvent.click(within(fresh).getByLabelText<HTMLInputElement>(en.transportHttp))
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.url), { target: { value: 'https://x' } })
+    fireEvent.click(within(fresh).getByRole('button', { name: en.addRow }))
+    const rows = within(fresh).getAllByLabelText('key')
     fireEvent.change(rows[0]!, { target: { value: 'Authorization' } })
-    const secretValues = document.querySelectorAll<HTMLInputElement>('input[type="password"]')
+    const secretValues = fresh.querySelectorAll<HTMLInputElement>('input[type="password"]')
     fireEvent.change(secretValues[0]!, { target: { value: 'Bearer x' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -195,63 +249,18 @@ describe('McpConfigTab', () => {
     })
   })
 
-  it('toggles the switches and removes secret rows on an existing server', async () => {
-    const upsert = vi.fn<McpConfigTabInjected['upsert']>()
-      .mockResolvedValue({ entryId: 'mcp-fs', serverName: 'fs', transport: 'stdio', enabled: true, fiberPhase: null, command: 'node' } as McpServerView)
-    const view = render(<McpConfigTab {...configProps({ upsert })} />)
-    await screen.findByText('fs')
-
-    fireEvent.click(screen.getByRole('button', { name: 'fs, stdio process, Enabled' }))
-    expect(view.container.querySelector('[data-mcp-server="mcp-fs"]')?.getAttribute('data-open')).toBe('true')
-    expect((screen.getByLabelText<HTMLInputElement>(en.reconnect)).checked).toBe(true)
-    // The stored server starts with fail-on-startup enabled.
-    expect((screen.getByLabelText<HTMLInputElement>(en.failOnStartupError)).checked).toBe(true)
-
-    // Turning reconnect off drops the delay fields from the submitted config.
-    fireEvent.click(screen.getByLabelText(en.reconnect))
-    expect((screen.getByLabelText<HTMLInputElement>(en.reconnect)).checked).toBe(false)
-    // Remove the stored env row.
-    fireEvent.click(screen.getByRole('button', { name: en.removeRow }))
-    expect(screen.queryByLabelText('key')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
-
-    await waitFor(() => {
-      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
-        transport: 'stdio',
-        serverName: 'fs',
-        command: 'node',
-        failOnStartupError: true,
-      }))
-    })
-    const call = upsert.mock.calls[0]![0]
-    expect(call).not.toHaveProperty('reconnect')
-    expect(call).not.toHaveProperty('env')
-    expect(view.container.querySelector('[data-mcp-server="mcp-fs"]')?.getAttribute('data-open')).toBe('false')
-  })
-
-  it('opens an http server with stored header keys redacted', async () => {
-    const view = render(<McpConfigTab {...configProps({ list: async () => HTTP_SNAPSHOT })} />)
-    await screen.findByText('remote')
-
-    fireEvent.click(screen.getByRole('button', { name: 'remote, Streamable HTTP, Enabled' }))
-    expect(view.container.querySelector('[data-mcp-server="mcp-http"]')?.getAttribute('data-open')).toBe('true')
-    expect((screen.getByLabelText<HTMLInputElement>(en.url)).value).toBe('https://x')
-    expect((screen.getAllByLabelText('key')[0] as HTMLInputElement).value).toBe('Authorization')
-    expect(screen.getAllByPlaceholderText(en.secretPlaceholder)).toHaveLength(1)
-  })
-
   it('saves a minimal stdio server omitting blank optionals', async () => {
     const upsert = vi.fn<McpConfigTabInjected['upsert']>()
       .mockResolvedValue({ entryId: 'mcp-min', serverName: 'min', transport: 'stdio', enabled: true, fiberPhase: null } as McpServerView)
-    render(<McpConfigTab {...configProps({ upsert })} />)
+    const view = render(<McpConfigTab {...configProps({ upsert })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addServer }))
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'min' } })
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.command), { target: { value: 'python' } })
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'min' } })
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.command), { target: { value: 'python' } })
     // A zero timeout parses as "unset", not a stored value.
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.toolCallTimeoutMs), { target: { value: '0' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.toolCallTimeoutMs), { target: { value: '0' } })
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(upsert).toHaveBeenCalledWith({ transport: 'stdio', serverName: 'min', command: 'python' })
@@ -261,14 +270,14 @@ describe('McpConfigTab', () => {
   it('saves reconnect enabled without delay fields', async () => {
     const upsert = vi.fn<McpConfigTabInjected['upsert']>()
       .mockResolvedValue({ entryId: 'mcp-min', serverName: 'min', transport: 'stdio', enabled: true, fiberPhase: null } as McpServerView)
-    render(<McpConfigTab {...configProps({ upsert })} />)
+    const view = render(<McpConfigTab {...configProps({ upsert })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addServer }))
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'min' } })
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.command), { target: { value: 'python' } })
-    fireEvent.click(screen.getByLabelText<HTMLInputElement>(en.reconnect))
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'min' } })
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.command), { target: { value: 'python' } })
+    fireEvent.click(within(fresh).getByLabelText<HTMLInputElement>(en.reconnect))
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -283,17 +292,17 @@ describe('McpConfigTab', () => {
   it('toggles fail-on-startup and edits the reconnect delays', async () => {
     const upsert = vi.fn<McpConfigTabInjected['upsert']>()
       .mockResolvedValue({ entryId: 'mcp-fs', serverName: 'fs', transport: 'stdio', enabled: true, fiberPhase: null, command: 'node' } as McpServerView)
-    render(<McpConfigTab {...configProps({ upsert })} />)
+    const view = render(<McpConfigTab {...configProps({ upsert })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: 'fs, stdio process, Enabled' }))
+    const fs = cardOf(view, 'mcp-fs')
     // The stored server starts with fail-on-startup enabled; turn it off and
     // edit every reconnect delay field.
-    fireEvent.click(screen.getByLabelText<HTMLInputElement>(en.failOnStartupError))
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.initialDelayMs), { target: { value: '250' } })
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.maxDelayMs), { target: { value: '9000' } })
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.maxAttempts), { target: { value: '20' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    fireEvent.click(within(fs).getByLabelText<HTMLInputElement>(en.failOnStartupError))
+    fireEvent.change(within(fs).getByLabelText<HTMLInputElement>(en.initialDelayMs), { target: { value: '250' } })
+    fireEvent.change(within(fs).getByLabelText<HTMLInputElement>(en.maxDelayMs), { target: { value: '9000' } })
+    fireEvent.change(within(fs).getByLabelText<HTMLInputElement>(en.maxAttempts), { target: { value: '20' } })
+    fireEvent.click(within(fs).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -309,72 +318,25 @@ describe('McpConfigTab', () => {
   it('saves an http server without headers', async () => {
     const upsert = vi.fn<McpConfigTabInjected['upsert']>()
       .mockResolvedValue({ entryId: 'mcp-http', serverName: 'remote', transport: 'streamable-http', enabled: true, fiberPhase: null, url: 'https://x' } as McpServerView)
-    render(<McpConfigTab {...configProps({ upsert })} />)
+    const view = render(<McpConfigTab {...configProps({ upsert })} />)
     await screen.findByText('fs')
 
-    fireEvent.click(screen.getByRole('button', { name: en.addServer }))
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'remote' } })
-    fireEvent.click(screen.getByLabelText<HTMLInputElement>(en.transportHttp))
-    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.url), { target: { value: 'https://x' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const fresh = cardOf(view, 'new')
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.serverName), { target: { value: 'remote' } })
+    fireEvent.click(within(fresh).getByLabelText<HTMLInputElement>(en.transportHttp))
+    fireEvent.change(within(fresh).getByLabelText<HTMLInputElement>(en.url), { target: { value: 'https://x' } })
+    fireEvent.click(within(fresh).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
       expect(upsert).toHaveBeenCalledWith({ transport: 'streamable-http', serverName: 'remote', url: 'https://x' })
     })
   })
 
-  it('drops a blank-key secret row on submit', async () => {
-    const upsert = vi.fn<McpConfigTabInjected['upsert']>()
-      .mockResolvedValue({ entryId: 'mcp-fs', serverName: 'fs', transport: 'stdio', enabled: true, fiberPhase: null } as McpServerView)
-    const view = render(<McpConfigTab {...configProps({ upsert })} />)
-    await screen.findByText('fs')
-
-    fireEvent.click(screen.getByRole('button', { name: 'fs, stdio process, Enabled' }))
-    fireEvent.click(screen.getByRole('button', { name: en.addRow }))
-    const secretValues = view.container.querySelectorAll<HTMLInputElement>('input[type="password"]')
-    fireEvent.change(secretValues[1]!, { target: { value: 'x' } })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
-
-    await waitFor(() => {
-      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ env: { TOKEN: '' } }))
-    })
-  })
-
-  it('shows the empty state until the add form opens', async () => {
-    const view = render(<McpConfigTab {...configProps({ list: async () => ({ entries: [] }) })} />)
-    expect(await screen.findByText(en.empty)).toBeTruthy()
-
-    fireEvent.click(screen.getByRole('button', { name: en.addServer }))
-    expect(screen.queryByText(en.empty)).toBeNull()
-    expect(view.container.querySelector('[data-mcp-server="new"]')?.getAttribute('data-open')).toBe('true')
-  })
-
-  it('closes the new-server card from its header', async () => {
-    const view = render(<McpConfigTab {...configProps({})} />)
-    await screen.findByText('fs')
-
-    fireEvent.click(screen.getByRole('button', { name: en.addServer }))
-    expect(view.container.querySelector('[data-mcp-server="new"]')?.getAttribute('data-open')).toBe('true')
-    fireEvent.click(screen.getByRole('button', { name: en.newServer }))
-    expect(view.container.querySelector('[data-mcp-server="new"]')).toBeNull()
-  })
-
-  it('deletes a server whose name is unparsed', async () => {
-    const removeServer = vi.fn<McpConfigTabInjected['removeServer']>().mockResolvedValue({ removed: true })
-    render(<McpConfigTab {...configProps({ removeServer })} />)
-    await screen.findByText('fs')
-
-    fireEvent.click(screen.getByRole('button', { name: `${en.newServer}, , ${en.enabledTag}` }))
-    fireEvent.click(screen.getByRole('button', { name: en.deleteServer }))
-
-    await waitFor(() => { expect(removeServer).toHaveBeenCalledWith('') })
-  })
-
   it('shows a generic failure and retries into the ready state', async () => {
-    const list = vi.fn<McpConfigTabInjected['list']>()
+    const listConfig = vi.fn<McpConfigTabInjected['listConfig']>()
       .mockRejectedValueOnce(new Error('private transport detail'))
       .mockResolvedValueOnce(SNAPSHOT)
-    render(<McpConfigTab {...configProps({ list })} />)
+    render(<McpConfigTab {...configProps({ listConfig })} />)
 
     expect((await screen.findByRole('alert')).textContent).toBe(en.error)
     expect(screen.queryByText('private transport detail')).toBeNull()
@@ -383,19 +345,19 @@ describe('McpConfigTab', () => {
   })
 
   it('contains a synchronous failure and ignores a result after unmount', async () => {
-    const syncFailure = vi.fn(() => { throw new Error('namespace unavailable') }) as McpConfigTabInjected['list']
-    const failed = render(<McpConfigTab {...configProps({ list: syncFailure })} />)
+    const syncFailure = vi.fn(() => { throw new Error('namespace unavailable') }) as McpConfigTabInjected['listConfig']
+    const failed = render(<McpConfigTab {...configProps({ listConfig: syncFailure })} />)
     expect((await screen.findByRole('alert')).textContent).toBe(en.error)
     failed.unmount()
 
     const deferred = Promise.withResolvers<Snapshot>()
-    const pending = render(<McpConfigTab {...configProps({ list: () => deferred.promise })} />)
+    const pending = render(<McpConfigTab {...configProps({ listConfig: () => deferred.promise })} />)
     pending.unmount()
     await act(async () => { deferred.resolve(SNAPSHOT) })
 
     // A rejection landing after unmount must not touch the error state either.
     const failing = Promise.withResolvers<Snapshot>()
-    const pendingFail = render(<McpConfigTab {...configProps({ list: () => failing.promise })} />)
+    const pendingFail = render(<McpConfigTab {...configProps({ listConfig: () => failing.promise })} />)
     pendingFail.unmount()
     await act(async () => { failing.reject(new Error('late failure')) })
   })

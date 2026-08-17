@@ -63,7 +63,9 @@ export function apply(ctx: ClientContext): void {
   const list = async (): Promise<SkillListResult> => {
     const sessionId = ctx.sessions.list.getSnapshot().current
     if (sessionId === undefined) return { sessionless: true, skills: [] }
-    const response = await api.skills.list({ sessionId })
+    // Settings surface: include model-only bundled/internal skills so they are
+    // exposed in the list; project skills stay the only editable config items.
+    const response = await api.skills.list({ sessionId, includeInternal: true })
     if (!response.result.ok) {
       throw new Error(`skills.list failed: ${response.result.error.code}: ${response.result.error.message}`)
     }
