@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 // ThemePresenter behavior account: root color-scheme and the palette attribute
-// follow active.colorScheme only, token variables replace the previous apply's
-// set, theme-color metadata follows the rendered body background, and dispose
-// retracts everything the presenter wrote.
+// follow active.colorScheme only, the theme-id attribute carries active.id
+// (theme-specific CSS scopes on it), token variables replace the previous
+// apply's set, theme-color metadata follows the rendered body background, and
+// dispose retracts everything the presenter wrote.
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
-import { DARK_ATTRIBUTE, ThemePresenter } from '@deepseek-ai/dsh-client-ui-layout/src/client/theme-presenter.ts'
+import {
+  DARK_ATTRIBUTE, THEME_ID_ATTRIBUTE, ThemePresenter,
+} from '@deepseek-ai/dsh-client-ui-layout/src/client/theme-presenter.ts'
 
 const LIGHT_THEME_COLOR = 'rgb(255, 255, 255)'
 const DARK_THEME_COLOR = 'rgb(21, 21, 23)'
@@ -29,6 +32,7 @@ beforeEach(() => {
   clearThemePresentation()
   document.documentElement.style.removeProperty('color-scheme')
   document.body.removeAttribute(DARK_ATTRIBUTE)
+  document.body.removeAttribute(THEME_ID_ATTRIBUTE)
   document.body.removeAttribute('style')
   const style = document.createElement('style')
   style.dataset.themePresenterTest = ''
@@ -47,6 +51,7 @@ describe('ThemePresenter', () => {
     presenter.apply(snapshot('light'))
     expect(document.documentElement.style.colorScheme).toBe('light')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
+    expect(document.body.getAttribute(THEME_ID_ATTRIBUTE)).toBe('light-test')
     expect(themeColorMeta()?.content).toBe(LIGHT_THEME_COLOR)
   })
 
@@ -56,10 +61,12 @@ describe('ThemePresenter', () => {
     const meta = themeColorMeta()
     expect(document.documentElement.style.colorScheme).toBe('dark')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(true)
+    expect(document.body.getAttribute(THEME_ID_ATTRIBUTE)).toBe('dark-test')
     expect(meta?.content).toBe(DARK_THEME_COLOR)
     presenter.apply(snapshot('light'))
     expect(document.documentElement.style.colorScheme).toBe('light')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
+    expect(document.body.getAttribute(THEME_ID_ATTRIBUTE)).toBe('light-test')
     expect(themeColorMeta()).toBe(meta)
     expect(meta?.content).toBe(LIGHT_THEME_COLOR)
     expect(document.head.querySelectorAll('meta[name="theme-color"]')).toHaveLength(1)
@@ -76,7 +83,7 @@ describe('ThemePresenter', () => {
     expect(document.body.style.getPropertyValue('--dsw-alias-fg')).toBe('')
   })
 
-  it('dispose removes color-scheme, the attribute, and every applied variable, sparing foreign inline styles', () => {
+  it('dispose removes color-scheme, the attributes, and every applied variable, sparing foreign inline styles', () => {
     document.body.style.setProperty('--foreign', 'kept')
     const presenter = new ThemePresenter()
     presenter.apply(snapshot('dark', { '--dsw-alias-bg': '#111' }))
@@ -84,6 +91,7 @@ describe('ThemePresenter', () => {
     presenter.dispose()
     expect(document.documentElement.style.colorScheme).toBe('')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
+    expect(document.body.hasAttribute(THEME_ID_ATTRIBUTE)).toBe(false)
     expect(document.body.style.getPropertyValue('--dsw-alias-bg')).toBe('')
     expect(document.body.style.getPropertyValue('--foreign')).toBe('kept')
     expect(meta?.isConnected).toBe(false)

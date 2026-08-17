@@ -43,7 +43,7 @@
 
 /* 中心列：暗色主题下加一层极淡垂直渐变，让正文背后的粒子若隐若现又不干扰
    阅读（规范 §33）；亮色主题保持透明。 */
-:global(body[data-ds-dark-theme]) .centerCol {
+:global(body[data-ds-theme='harness']) .centerCol {
   background: linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.38));
 }
 

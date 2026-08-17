@@ -1,14 +1,15 @@
 /**
  * 确定性低频粒子场（Canvas 2D，无依赖）。
  *
- * 复刻官网 Hero 2D 粒子网络的气质：蓝灰点阵 + 极弱邻近连线，而不是星空/
- * 雪花/星座。要点：
+ * 复刻官网 Hero 粒子织物气质：蓝灰点阵缓慢漂浮，而不是星空/雪花/星座。
+ * 要点：
  *  - 固定 seed（mulberry32(4176)）——每次刷新、每台机器粒子位置一致，
  *    visual regression 可比较；
  *  - 粒子主体集中在右侧 44%→108% 横向带、-8%→58% 纵向带，中心工作区左侧
  *    保持安静（规范 §25）；
  *  - 运动低频（整波 20~40s）、鼠标仅 ±8px/±5px 微弱视差；
- *  - 移动端降密度、关连线/视差；`prefers-reduced-motion` 与 `?visual-test=1`
+ *  - 只画粒子点、不做邻近连线（评审 P1：避免每帧重建空间索引的 GC 压力）；
+ *  - 移动端降密度、关视差；`prefers-reduced-motion` 与 `?visual-test=1`
  *    冻结为静态单帧（固定 phase、无 RAF）；
  *  - `document.hidden` 时暂停 RAF；DPR 封顶 2；resize 以同一 seed 重建。
  * 该组件只读 DOM 尺寸/主题属性，不读取任何会话/业务状态（纯呈现）。
@@ -24,9 +25,6 @@ const FIXED_PHASE = 1.7
 const WAVE_PERIOD_S = 30
 /** 视差上限（px）：x ±8 / y ±5。 */
 const PARALLAX_MAX = { x: 8, y: 5 }
-/** 邻近连线距离/透明度上限（官方网络 <20px；规范 §29 默认极弱或关闭）。 */
-const LINK_DIST = 18
-const LINK_ALPHA = 0.02
 
 /** mulberry32 固定 seed PRNG（无 Math.random）。 */
 function mulberry32(seed: number): () => number {
@@ -150,40 +148,12 @@ export function ParticleField(props: { dark: boolean }) {
       }
     }
 
-    /** 单帧绘制：先连线后粒子，避免连线盖过点本身。 */
+    /** 单帧绘制：只画粒子点（评审 P1：去除每帧重建空间索引的邻近连线，
+     *  消除 GC 压力；粒子织物观感由密度/透明度本身承担）。 */
     const draw = (): void => {
       ctx.clearRect(0, 0, width, height)
       const px = parallax.x
       const py = parallax.y
-      if (width >= 768) {
-        const cell = LINK_DIST
-        const grid = new Map<number, number[]>()
-        particles.forEach((p, index) => {
-          const key = Math.floor((p.x + px) / cell) * 73856093 ^ Math.floor((p.y + py) / cell) * 19349663
-          const bucket = grid.get(key)
-          if (bucket === undefined) grid.set(key, [index])
-          else bucket.push(index)
-        })
-        ctx.strokeStyle = `rgba(${darkRef.current ? '127, 171, 224' : '96, 130, 180'}, ${LINK_ALPHA})`
-        ctx.lineWidth = 0.6
-        ctx.beginPath()
-        for (const indices of grid.values()) {
-          for (let a = 0; a < indices.length; a++) {
-            for (let b = a + 1; b < indices.length; b++) {
-              const pa = particles[indices[a] ?? -1]
-              const pb = particles[indices[b] ?? -1]
-              if (pa === undefined || pb === undefined) continue
-              const dx = pa.x - pb.x
-              const dy = pa.y - pb.y
-              if (dx * dx + dy * dy <= LINK_DIST * LINK_DIST) {
-                ctx.moveTo(pa.x + px, pa.y + py)
-                ctx.lineTo(pb.x + px, pb.y + py)
-              }
-            }
-          }
-        }
-        ctx.stroke()
-      }
       for (const p of particles) {
         ctx.fillStyle = p.color
         ctx.beginPath()

@@ -37,7 +37,7 @@
 /* Harness 官网风（暗色系）：Modal 表面 ~96% 不透明（规范 §58）——与设置面板
    同款处理，理由见 SettingsRoot 注释（layer-2 白 4% 会让粒子场透进弹窗）。
    不用 backdrop-filter：96% 不透明下 blur 无意义，且制造 fixed 包含块。 */
-:global(body[data-ds-dark-theme]) .dialog {
+:global(body[data-ds-theme='harness']) .dialog {
   background: rgba(12, 23, 38, 0.96);
   border-color: rgba(180, 210, 245, 0.1);
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);

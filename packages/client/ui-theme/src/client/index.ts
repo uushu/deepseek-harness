@@ -15,8 +15,8 @@ import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runti
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { AppearanceRowInjected } from './AppearanceRow.tsx'
-import { AppearanceRow } from './AppearanceRow.tsx'
+import type { ThemeEntryInjected } from './ThemeEntry.tsx'
+import { ThemeEntry } from './ThemeEntry.tsx'
 import { createAppearanceRowStore } from './settings-store.ts'
 import { HARNESS_THEME_ID, HARNESS_TOKENS } from '../harness-theme.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
@@ -25,7 +25,7 @@ import {
   type ThemePreference, type ThemeSettings,
 } from '../theme-settings.ts'
 
-export type { AppearanceRowComponentProps, AppearanceRowInjected } from './AppearanceRow.tsx'
+export type { ThemeEntryComponentProps, ThemeEntryInjected } from './ThemeEntry.tsx'
 export type { AppearanceRowState } from './settings-store.ts'
 export type { ThemeKey } from './locales.ts'
 export type { ThemePreference, ThemeSettings } from '../theme-settings.ts'
@@ -381,8 +381,8 @@ export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope
 
 /**
  * Client plugin body: provide the theme service and register the
- * feature-owned Appearance preference row into the General section's item
- * slot (a feature owns its settings surface).
+ * feature-owned theme entry (skin picker) into the sidebar foot action slot —
+ * the harness custom skin lives here, not in the settings Appearance row.
  * @param ctx - client cordis context.
  */
 export function apply(ctx: ClientContext): void {
@@ -398,7 +398,7 @@ export function apply(ctx: ClientContext): void {
     bound?.sync(snapshot.preference, snapshot.revision)
   }
   ctx.on('theme/change', sync)
-  const injected = (actions: BoundActions<typeof store>): AppearanceRowInjected => {
+  const injected = (actions: BoundActions<typeof store>): ThemeEntryInjected => {
     bound = actions
     // Re-sync from the getter so no event is lost between registration and
     // first render (the store's revision guard drops stale duplicates).
@@ -407,12 +407,15 @@ export function apply(ctx: ClientContext): void {
       setTheme: (id) => { theme.setTheme(id) },
     }
   }
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'appearance',
+  // 'sidebar.footer.action' 的槽位类型在 ui-sidebar 声明，而 ui-theme 无法
+  // 引用它（tsc 项目引用成环：ui-sidebar → ui-layout → ui-theme）。运行时
+  // 注册由侧栏 shell 校验；此处仅擦除该槽位的静态类型检查（边界取舍）。
+  ctx.slots.inject('sidebar.footer.action' as never, () => ctx.slots.register({
+    name: 'sidebar.footer.action' as never,
+    id: 'theme',
     order: 10,
     store,
     locale: SETTINGS_NS,
     inject: injected,
-  }, AppearanceRow))
+  } as never, ThemeEntry as never))
 }

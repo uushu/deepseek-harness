@@ -1,16 +1,18 @@
 // @vitest-environment jsdom
 /**
- * AmbientBackground + ParticleField 呈现层覆盖：环境光层跟随暗色属性渲染
- * 全部子层；粒子场在 jsdom 无真实 2D 上下文时安全降级，用假上下文驱动
- * 尺寸/构建/绘制/静态模式（reduced-motion 与 ?visual-test=1）/隐藏暂停/
- * resize 重建/清理等分支。二者都不读取任何会话或业务状态。
+ * AmbientBackground + ParticleField 呈现层覆盖：环境光层只属于 harness 主题
+ * （body[data-ds-theme='harness'] 门控，dark/light 不渲染）；粒子场在 jsdom
+ * 无真实 2D 上下文时安全降级，用假上下文驱动尺寸/构建/绘制/静态模式
+ * （reduced-motion 与 ?visual-test=1）/隐藏暂停/resize 重建/清理等分支。
+ * 二者都不读取任何会话或业务状态。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import { AmbientBackground } from '../src/client/AmbientBackground.tsx'
 import { ParticleField } from '../src/client/ParticleField.tsx'
 
-const DARK = 'data-ds-dark-theme'
+const THEME = 'data-ds-theme'
+const HARNESS = 'harness'
 
 /** 假 2D 上下文：记录调用，几何方法为空实现，颜色属性写入被记录。 */
 function fakeContext(): CanvasRenderingContext2D & { calls: string[] } {
@@ -58,34 +60,33 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
-  document.body.removeAttribute(DARK)
+  document.body.removeAttribute(THEME)
   window.history.replaceState(null, '', '/')
 })
 
 describe('AmbientBackground', () => {
-  it('renders the full layer stack under the current dark attribute', () => {
-    document.body.setAttribute(DARK, '')
+  it('renders the full layer stack only under the harness theme id', () => {
+    document.body.setAttribute(THEME, HARNESS)
     const { container } = render(<AmbientBackground />)
     const ambient = container.firstElementChild as HTMLElement
     expect(ambient.className).toContain('ambient')
     expect(ambient.getAttribute('aria-hidden')).toBe('true')
-    expect(ambient.hasAttribute('data-dark')).toBe(true)
     // base + glowPrimary + glowSecondary + ribbonA + ribbonB + canvas + vignette
     expect(ambient.children.length).toBe(7)
     expect(ambient.querySelector('canvas')).not.toBeNull()
   })
 
-  it('light mode omits data-dark and follows body attribute flips', async () => {
+  it('dark/light themes render nothing; attribute flips mount and unmount the layer', async () => {
+    document.body.setAttribute(THEME, 'dark')
     const { container } = render(<AmbientBackground />)
-    const ambient = container.firstElementChild as HTMLElement
-    expect(ambient.hasAttribute('data-dark')).toBe(false)
-    act(() => { document.body.setAttribute(DARK, '') })
-    // MutationObserver 在微任务队列派发：冲刷一次让回调落地。
+    expect(container.firstElementChild).toBeNull()
+    // 切到 harness：MutationObserver 在微任务队列派发，冲刷一次让回调落地。
+    act(() => { document.body.setAttribute(THEME, HARNESS) })
     await act(async () => { await Promise.resolve() })
-    expect(ambient.hasAttribute('data-dark')).toBe(true)
-    act(() => { document.body.removeAttribute(DARK) })
+    expect(container.firstElementChild).not.toBeNull()
+    act(() => { document.body.setAttribute(THEME, 'light') })
     await act(async () => { await Promise.resolve() })
-    expect(ambient.hasAttribute('data-dark')).toBe(false)
+    expect(container.firstElementChild).toBeNull()
   })
 })
 

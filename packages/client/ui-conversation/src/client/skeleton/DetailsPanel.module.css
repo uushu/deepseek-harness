@@ -14,13 +14,13 @@
 /* Harness 官网风（暗色系）：details 不是灰色后台面板 —— 与主工作区同一套
    暗色半透明技术表面（规范 §56）。模糊放在 ::before 层（避免 backdrop-filter
    成为 fixed 弹层包含块，见 SidebarRoot 同款注释）。 */
-:global(body[data-ds-dark-theme]) .root {
+:global(body[data-ds-theme='harness']) .root {
   position: relative;
   isolation: isolate;
   background: linear-gradient(180deg, rgba(8, 16, 28, 0.82), rgba(6, 12, 21, 0.76));
 }
 
-:global(body[data-ds-dark-theme]) .root::before {
+:global(body[data-ds-theme='harness']) .root::before {
   content: '';
   position: absolute;
   inset: 0;

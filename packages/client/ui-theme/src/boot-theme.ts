@@ -22,6 +22,8 @@ function bootThemeScript(preference: ThemePreference): string {
   const dark = preference === 'dark' || preference === 'harness' || systemDark
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
   document.body.toggleAttribute('data-ds-dark-theme', dark)
+  // 主题身份：harness 专属 presentation CSS 以此为准（与 dark 基础色板分离）。
+  document.body.setAttribute('data-ds-theme', preference === 'system' ? (dark ? 'dark' : 'light') : preference)
   const tokens = ${tokens}
   if (tokens) for (const [name, value] of Object.entries(tokens)) {
     document.body.style.setProperty(name, value)

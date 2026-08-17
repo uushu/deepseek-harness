@@ -85,7 +85,7 @@
    玻璃胶囊 + 大半径低饱阴影（规范 §50-52）。模糊放在 ::before 层（原因见
    SidebarRoot 同款注释：避免 backdrop-filter 成为 fixed 弹层包含块）。
    亮色主题保持 token 底色。 */
-:global(body[data-ds-dark-theme]) .card {
+:global(body[data-ds-theme='harness']) .card {
   position: relative;
   isolation: isolate;
   background: linear-gradient(180deg, rgba(11, 22, 37, 0.92), rgba(7, 15, 26, 0.94));
@@ -95,7 +95,7 @@
     0 28px 80px rgba(0, 0, 0, 0.32);
 }
 
-:global(body[data-ds-dark-theme]) .card::before {
+:global(body[data-ds-theme='harness']) .card::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -106,7 +106,7 @@
 }
 
 /* Focus 不是普通蓝边框：淡蓝外辉 + 边框增亮（规范 §52）。 */
-:global(body[data-ds-dark-theme]) .card:focus-within {
+:global(body[data-ds-theme='harness']) .card:focus-within {
   border-color: rgba(103, 158, 254, 0.3);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.032),

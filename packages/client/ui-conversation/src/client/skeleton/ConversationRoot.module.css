@@ -27,7 +27,7 @@
 
 /* Harness 官网风（暗色系）：中心列本身不涂满 —— 让环境光/粒子透过聊天区
    若隐若现（AppFrame 中心列已加极淡渐变，这里透传）。 */
-:global(body[data-ds-dark-theme]) .root {
+:global(body[data-ds-theme='harness']) .root {
   background: transparent;
 }
 

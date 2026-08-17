@@ -1,0 +1,39 @@
+/* 侧栏主题入口（皮肤图标按钮）：几何镜像设置 trigger（SettingsRoot .trigger）
+ * —— 展开态 34px 紧凑行、收拢 rail 态 36px 圆。图标本身即 Harness 皮肤标识，
+ * 不显示文字（需求：入口只显示皮肤图标）。 */
+
+.trigger {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(100% + 8px);
+  height: 34px;
+  margin: 4px -4px 4px;
+  padding: 6px 2px 6px 10px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  line-height: 22px;
+}
+
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Rail：36x36 圆（与设置 rail 触发一致）。 */
+.trigger.rail {
+  width: 36px;
+  height: 36px;
+  margin: 8px 0 10px;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 50%;
+}

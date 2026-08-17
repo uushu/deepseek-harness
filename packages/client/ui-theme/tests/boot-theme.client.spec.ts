@@ -27,6 +27,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   document.documentElement.style.removeProperty('color-scheme')
   document.body.removeAttribute(DARK_ATTRIBUTE)
+  document.body.removeAttribute('data-ds-theme')
 })
 
 describe('theme boot index transform', () => {
@@ -55,6 +56,8 @@ describe('theme boot index transform', () => {
     executeBootstrap('system')
     expect(document.documentElement.style.colorScheme).toBe(colorScheme)
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(dark)
+    // system 解析后的主题身份写入 body（与 dark 基础色板分离）。
+    expect(document.body.getAttribute('data-ds-theme')).toBe(colorScheme)
   })
 
   it('defaults to system and falls back to light when matchMedia is unavailable', () => {
@@ -68,6 +71,7 @@ describe('theme boot index transform', () => {
     const html = executeBootstrap('harness')
     expect(document.documentElement.style.colorScheme).toBe('dark')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(true)
+    expect(document.body.getAttribute('data-ds-theme')).toBe('harness')
     expect(document.body.style.getPropertyValue('--dsw-alias-bg-base')).toBe('#0a0a0a')
     expect(document.body.style.getPropertyValue('--dsw-alias-brand-primary')).toBe('#6799fe')
     expect(html).toContain('--dsw-alias-bg-base')

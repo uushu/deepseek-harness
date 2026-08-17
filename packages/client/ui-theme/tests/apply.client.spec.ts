@@ -1,6 +1,7 @@
 /** ui-theme apply wiring: service provision, settings dictionaries riding the
- * locale service, declaration-aware Appearance row registration, snapshot
- * projection into the row store, and HMR collapse recovery. */
+ * locale service, declaration-aware theme-entry (sidebar foot action)
+ * registration, snapshot projection into the preference store, and HMR
+ * collapse recovery. */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
@@ -8,16 +9,16 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { TestRemote, usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { SettingsScopeBinder } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { apply, inject, SETTINGS_NS } from '@deepseek-ai/dsh-client-ui-theme/client'
-import type { AppearanceRowInjected, ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
+import type { ThemeEntryInjected, ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { THEME_SETTINGS_NAMESPACE, ThemeSettingsSchema } from '../src/theme-settings.ts'
-import { AppearanceRow } from '../src/client/AppearanceRow.tsx'
+import { ThemeEntry } from '../src/client/ThemeEntry.tsx'
 import type { createAppearanceRowStore } from '../src/client/settings-store.ts'
 
 // The service reads its initial locale from the browser; these specs assert
 // the shipped Chinese copy, so they state the browser they assume.
 usePinnedBrowserLanguages('zh-CN')
 
-const SLOT = 'settings.general.item'
+const SLOT = 'sidebar.footer.action'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -63,7 +64,7 @@ async function bench(isLoopback = true) {
   }
 }
 
-/** Stand in for the settings shell: declare the General item slot from root. */
+/** Stand in for the sidebar shell: declare the footer action slot from root. */
 function declareItems(slots: SlotRegistry): () => void {
   return slots.register(
     { name: 'root', children: { [SLOT]: { kind: 'list', scope: 'root' } } } as never,
@@ -74,10 +75,10 @@ function declareItems(slots: SlotRegistry): () => void {
 /** Mirror the framework's inject choreography: bake a real instance from the
  * declared handle and hand its actions to the entry's inject factory. */
 function faceOf(slots: SlotRegistry) {
-  const entry = slots.entries(SLOT).find(e => e.component === AppearanceRow)!
+  const entry = slots.entries(SLOT).find(e => e.component === ThemeEntry)!
   const handle = entry.store as ReturnType<typeof createAppearanceRowStore>
   const instance = handle.create()
-  const face = (entry.inject as unknown as (a: typeof instance.actions) => AppearanceRowInjected)(instance.actions)
+  const face = (entry.inject as unknown as (a: typeof instance.actions) => ThemeEntryInjected)(instance.actions)
   return { entry, instance, face }
 }
 
@@ -86,15 +87,15 @@ describe('ui-theme apply', () => {
     expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'settingsScope'])
   })
 
-  it('provides the service, registers localized copy, and registers the row (declaration before or after apply)', async () => {
+  it('provides the service, registers localized copy, and registers the entry (declaration before or after apply)', async () => {
     const before = await bench()
     declareItems(before.slots)
     await before.ctx.plugin({ inject: [...inject], apply }).await()
     expect(before.locale.bind(SETTINGS_NS)('appearance.title')).toBe('外观')
     before.locale.setLocale('en')
     expect(before.locale.bind(SETTINGS_NS)('appearance.title')).toBe('Appearance')
-    const entry = before.slots.entries(SLOT).find(e => e.component === AppearanceRow)!
-    expect(entry.options).toMatchObject({ id: 'appearance', order: 10 })
+    const entry = before.slots.entries(SLOT).find(e => e.component === ThemeEntry)!
+    expect(entry.options).toMatchObject({ id: 'theme', order: 10 })
 
     const after = await bench()
     const fiber = after.ctx.plugin({ inject: [...inject], apply })
@@ -102,7 +103,7 @@ describe('ui-theme apply', () => {
     expect(after.slots.entries(SLOT)).toHaveLength(0)
     declareItems(after.slots)
     await Promise.resolve()
-    expect(after.slots.entries(SLOT).some(e => e.component === AppearanceRow)).toBe(true)
+    expect(after.slots.entries(SLOT).some(e => e.component === ThemeEntry)).toBe(true)
   })
 
   it('projects service snapshots into the row store and routes face writes back', async () => {
@@ -117,7 +118,7 @@ describe('ui-theme apply', () => {
     // The inject-time re-sync sealed the init window: the mirror is current.
     expect(instance.getSnapshot().preference).toBe('dark')
     // Copy rides the standard locale seat: the entry declares the namespace.
-    expect(b.slots.entries(SLOT).find(e => e.component === AppearanceRow)!.locale).toBe(SETTINGS_NS)
+    expect(b.slots.entries(SLOT).find(e => e.component === ThemeEntry)!.locale).toBe(SETTINGS_NS)
 
     face.setTheme('system')
     expect(theme.getTheme().preference).toBe('system')
@@ -188,10 +189,10 @@ describe('ui-theme apply', () => {
 
     declareItems(b.slots)
     await Promise.resolve()
-    expect(b.slots.entries(SLOT).some(e => e.component === AppearanceRow)).toBe(true)
+    expect(b.slots.entries(SLOT).some(e => e.component === ThemeEntry)).toBe(true)
   })
 
-  it('teardown removes the row and the dictionaries; teardown without a declaration is quiet', async () => {
+  it('teardown removes the entry and the dictionaries; teardown without a declaration is quiet', async () => {
     const b = await bench()
     declareItems(b.slots)
     const fiber = b.ctx.plugin({ inject: [...inject], apply })

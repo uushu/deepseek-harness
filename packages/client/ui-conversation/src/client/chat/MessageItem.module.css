@@ -30,7 +30,7 @@
 
 /* Harness 官网风（暗色系）：用户弱气泡 —— 细冷边 + 低对比填充，不发光
    （规范 §43）。 */
-:global(body[data-ds-dark-theme]) .bubble {
+:global(body[data-ds-theme='harness']) .bubble {
   border: 1px solid rgba(176, 205, 235, 0.065);
 }
 

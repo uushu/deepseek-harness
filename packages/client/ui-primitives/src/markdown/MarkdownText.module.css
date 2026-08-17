@@ -79,12 +79,12 @@
 }
 
 /* Harness 官网风（暗色系）：链接用柔和蓝（#8eb3ff），不亮纯蓝。 */
-:global(body[data-ds-dark-theme]) .markdown a {
+:global(body[data-ds-theme='harness']) .markdown a {
   color: #8eb3ff;
 }
 
-:global(body[data-ds-dark-theme]) .markdown a:hover,
-:global(body[data-ds-dark-theme]) .markdown a:focus {
+:global(body[data-ds-theme='harness']) .markdown a:hover,
+:global(body[data-ds-theme='harness']) .markdown a:focus {
   color: #aec8ff;
   text-decoration-color: #8eb3ff;
 }

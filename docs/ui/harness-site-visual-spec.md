@@ -39,7 +39,11 @@ glow everywhere、每卡阴影、每状态彩色卡、ChatGPT/VS Code 克隆观�
 | glowSecondary | 58vw×66vh，top 12vh right -24vw，`radial-gradient(rgba(62,112,186,.24), rgba(30,60,104,.09) 48%, transparent 72%)`，blur 46px |
 | ribbonA/B | 62vw×18vh / 55vw×14vh 巨大模糊体，白/蓝灰线性渐变，blur 54/68px，斜向旋转 |
 | vignette | `radial-gradient(ellipse at 67% 20%, transparent 42%, rgba(3,6,11,.26) 78%, rgba(3,6,11,.55) 100%)` |
-| 亮色主题 | 全部降为极淡冷灰蓝（glowPrimary 替换为低透明灰蓝） |
+| 粒子 canvas | `position:absolute; inset:0; width/height:100%; display:block`（CSS 尺寸与 DPR backing buffer 分离） |
+
+> 环境光层**只属于 harness 主题**：以 `body[data-ds-theme='harness']`（主题身份）
+> 门控挂载，dark/light 下整层不渲染——与 dark 基础色板严格隔离（评审 P0）。
+> 主题切换离开 harness 即卸载，切回时粒子场以同一 seed 重建。
 
 校准收口点：`.ambient { --dsh-harness-ambient-opacity }`（AppFrame 的
 AmbientBackground.module.css），截图后只改这里。
@@ -87,7 +91,11 @@ AmbientBackground.module.css），截图后只改这里。
 | `--dsw-specific-input-major` | `rgba(8,17,29,.9)` |
 | `--dsw-specific-menu` | `rgba(14,27,44,.96)` |
 
-## 5. 表面材质（暗色系，`body[data-ds-dark-theme]` 作用域）
+## 5. 表面材质（仅 harness 主题，`body[data-ds-theme='harness']` 作用域）
+
+> 主题身份：ThemePresenter 与 boot-theme 把解析后的主题 id 写入
+> `body[data-ds-theme]`。harness 专属 presentation CSS 一律以此属性作用域，
+> 绝不使用 `body[data-ds-dark-theme]`（dark 基础色板共享该属性，评审 P0）。
 
 | 表面 | 规则 |
 |---|---|
@@ -105,6 +113,12 @@ AmbientBackground.module.css），截图后只改这里。
 > 表面的 `::before` 层（`z-index:-1` + 表面 `isolation: isolate`），表面自身
 > 不携带 filter/transform——这是仓库既有先例（ConversationRoot 避免 transform
 > 包含块）的延伸，已实测设置弹窗恢复视口居中 800×800、composer 菜单正常弹出。
+
+## 5a. 侧栏主题入口（ThemeEntry，ui-theme）
+
+设置入口旁边的图标按钮（无文字），点击弹出四个内置偏好的皮肤菜单
+（浅色/深色/跟随系统/Harness，带图标与选中勾）。Harness 自定义皮肤从此
+入口进入；设置的「外观」行已移除（需求：入口只显示皮肤图标，不显示文字）。
 
 ## 6. 几何
 

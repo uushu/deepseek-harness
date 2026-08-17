@@ -37,6 +37,26 @@
 - 视觉规格：`docs/ui/harness-site-visual-spec.md`（中英配对，参数单一对照物）。
 - 验收：ui-layout/ui-theme/ui-conversation/ui-primitives/ui-sidebar 测试全绿（含 ambient 新规格 9 例）、`tsc -b tsconfig.client.json` 通过、apps/web 构建通过；截图矩阵 1920/1440/1280/1024 × 六状态，参考图对比按规格 §8 量化验收。
 
+## 三期：主题身份隔离 + 侧栏主题入口（评审修复）
+
+- **主题身份**：ThemePresenter 与 boot-theme 把解析后的主题 id 写入
+  `body[data-ds-theme]`（dispose/首帧同步清除/写入）；全部 harness 专属
+  presentation CSS 从 `body[data-ds-dark-theme]` 改为
+  `body[data-ds-theme='harness']`——dark 基础色板共享 dark 属性，此前会
+  误吃 harness 的玻璃表面（评审 P0）。
+- **Ambient 仅 harness**：环境光层以 `data-ds-theme='harness'` 门控挂载，
+  dark/light 不渲染；切走即卸载、切回以同一 seed 重建（评审 P0）。
+- **粒子**：canvas CSS 尺寸固定 100%（DPR backing buffer 分离，评审 P1）；
+  移除每帧重建空间索引的邻近连线（消除 GC，评审 P1）。
+- **主题入口（ThemeEntry）**：设置在侧栏设置入口旁的图标按钮（无文字），
+  弹出四个内置偏好的皮肤菜单；设置的「外观」行移除。槽位
+  `sidebar.footer.action` 类型在 ui-sidebar，ui-theme 因 tsc 项目引用成环
+  无法引用，注册边界以 `as never` 擦除静态槽位类型检查（运行时由侧栏校验）。
+- 验收：ui-theme/ui-layout/ui-sidebar/ui-conversation/ui-primitives/
+  ui-settings-general 全绿（含 theme-entry 新规格 5 例、ambient 门控重写）；
+  `tsc -b tsconfig.client.json` 干净；实机验证 harness 有环境层+毛玻璃、
+  切 dark 后环境层卸载/毛玻璃消失、切回恢复、设置内无外观行。
+
 ## 已知边界
 
 - `api-catalog.ts` 的 `ThemePreference` 声明是 `typeof THEME_PREFERENCES[number]` 引用，无需重新生成；`gen-cordis-api` 目前被工作区既有 session 事件文档缺参阻塞，与本次改动无关。
