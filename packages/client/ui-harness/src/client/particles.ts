@@ -97,6 +97,9 @@ export class ParticleField {
   constructor(container: HTMLElement) {
     this.container = container
     this.canvas = document.createElement('canvas')
+    // Mount the canvas up front: it must be in the DOM in both paths (a live
+    // 2D context renders through it; a null context keeps it silent).
+    container.appendChild(this.canvas)
     const ctx = this.canvas.getContext('2d')
     if (ctx === null) {
       // No 2D context (jsdom / headless): keep a silent canvas, no loop.
@@ -104,7 +107,6 @@ export class ParticleField {
       this.onVisibility = () => {}
       this.onResize = () => {}
       this.onPointer = () => {}
-      container.appendChild(this.canvas)
       return
     }
     this.ctx = ctx

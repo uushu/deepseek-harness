@@ -85,9 +85,16 @@
 
 /* ---------- Glass surfaces: frosted panes with blur on ::before (see header
    note on containing blocks). ---------- */
+/* z-index: the settings overlay is a position:fixed pane rendered in-place
+   inside this subtree, so `isolation` traps it in the sidebar's stacking
+   context; the center's composer stack already sits at z-index 1 (painted
+   after the sidebar, so it wins the tie), therefore the sidebar root needs 2
+   to outrank it. The drag handle (z 2, painted last) and the overlay layer
+   (z 20) still land above. */
 [data-dsh-harness] [data-dsh-harness-sidebar] {
   position: relative;
   isolation: isolate;
+  z-index: 2;
   background: transparent;
 }
 
