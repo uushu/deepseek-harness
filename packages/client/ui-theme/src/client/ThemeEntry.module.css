@@ -1,16 +1,17 @@
-/* 侧栏主题入口（皮肤图标按钮）：几何镜像设置 trigger（SettingsRoot .trigger）
- * —— 展开态 34px 紧凑行、收拢 rail 态 36px 圆。图标本身即 Harness 皮肤标识，
- * 不显示文字（需求：入口只显示皮肤图标）。 */
+/* 侧栏主题入口（皮肤图标按钮）：宽态 34px 图标方块、紧挨设置行（footArea
+ * 横排，settings 行伸缩、此入口固定宽）；收拢 rail 态 36px 圆（与设置 rail
+ * 圆一致）。图标本身即 Harness 皮肤标识，不显示文字（需求：入口只显示皮肤
+ * 图标，不显示文字主题）。 */
 
 .trigger {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: calc(100% + 8px);
+  width: 34px;
   height: 34px;
-  margin: 4px -4px 4px;
-  padding: 6px 2px 6px 10px;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
   border: none;
   border-radius: 12px;
@@ -31,9 +32,6 @@
 .trigger.rail {
   width: 36px;
   height: 36px;
-  margin: 8px 0 10px;
-  justify-content: center;
-  gap: 0;
-  padding: 0;
+  margin: 0;
   border-radius: 50%;
 }
