@@ -171,20 +171,21 @@
 }
 
 .configTag {
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
   line-height: 16px;
+  white-space: nowrap;
 }
 
 .configTag[data-enabled='true'] {
-  background: var(--dsw-alias-state-success-weak);
-  color: var(--dsw-alias-state-success);
-}
-
-.configTag[data-enabled='false'] {
-  background: var(--dsw-alias-state-neutral-weak);
-  color: var(--dsw-alias-label-tertiary);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent);
+  color: var(--dsw-alias-state-success-primary);
 }
 
 .chevron {

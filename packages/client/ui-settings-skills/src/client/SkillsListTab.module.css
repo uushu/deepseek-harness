@@ -99,19 +99,25 @@
 }
 
 .invocationTag {
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
   line-height: 16px;
+  white-space: nowrap;
 }
 
 .invocationTag[data-model='true'] {
-  background: var(--dsw-alias-state-business-weak);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 10%, transparent);
   color: var(--dsw-alias-state-business-primary);
 }
 
 .invocationTag[data-model='false'] {
-  background: var(--dsw-alias-state-neutral-weak);
+  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 10%, transparent);
   color: var(--dsw-alias-label-tertiary);
 }
 
