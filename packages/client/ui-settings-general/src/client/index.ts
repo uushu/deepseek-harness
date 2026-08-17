@@ -210,7 +210,9 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'personalization',
-    order: 15,
+    // After the MCP/skills sections: plugins(15) → mcp(16) → skills(17) →
+    // personalization(18) → agent presets(20).
+    order: 18,
     label: () => t('personalization.nav'),
     locale: NS,
     inject: personalizationInjected,

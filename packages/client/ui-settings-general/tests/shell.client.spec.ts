@@ -80,7 +80,7 @@ describe('ui-settings apply', () => {
     // arrives from a feature registrant. The shell additionally seats the
     // personalization section (index.ts).
     const GENERAL = { id: 'general', order: 0, label: 'general.nav' }
-    const PERSONALIZATION = { id: 'personalization', order: 15, label: 'personalization.nav' }
+    const PERSONALIZATION = { id: 'personalization', order: 18, label: 'personalization.nav' }
     expect(sections.getSnapshot()).toEqual([GENERAL, PERSONALIZATION])
     b.slots.register({ name: 'settings.section', id: 'z', order: 20, label: 'Z' } as never, () => null)
     // No order and no label: both projection defaults apply.
