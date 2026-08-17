@@ -1,27 +1,31 @@
-/* Skills list tab: catalog cards with invocation badges. */
+/* Skills list tab: catalog cards with invocation badges, styled like the plugin inventory cards. */
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  width: 100%;
+  max-width: 760px;
   color: var(--dsw-alias-label-primary);
 }
 
-.status {
+.status,
+.failure p {
   margin: 0;
+}
+
+.status,
+.failure {
   font-size: 13px;
+  line-height: 20px;
   color: var(--dsw-alias-label-tertiary);
 }
 
 .failure {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 13px;
-}
-
-.failure p {
-  margin: 0;
+  gap: 10px;
+  color: var(--dsw-alias-state-error-primary);
 }
 
 .failure button {
@@ -31,39 +35,52 @@
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 13px;
   cursor: pointer;
 }
 
 .cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .card {
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 10px;
-  background: var(--dsw-alias-bg-surface);
+  min-width: 0;
   overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.card[data-open='true'] {
+  border-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-shadow-lv1);
 }
 
 .cardContent {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   width: 100%;
+  min-height: 52px;
   border: 0;
   padding: 12px 14px;
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.cardContent:hover,
+.card[data-open='true'] > .cardContent {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .cardContent:focus-visible {
@@ -79,7 +96,8 @@
 }
 
 .cardTitle strong {
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 600;
 }
 
@@ -92,10 +110,11 @@
 }
 
 .cardTrailing {
-  display: flex;
+  display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 7px;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .invocationTag {
@@ -122,8 +141,8 @@
 }
 
 .chevron {
+  flex: none;
   color: var(--dsw-alias-label-tertiary);
-  transition: transform 120ms ease;
 }
 
 .card[data-open='true'] .chevron {
@@ -131,8 +150,8 @@
 }
 
 .cardDetails {
-  border-top: 1px solid var(--dsw-alias-border-l1);
-  padding: 12px 14px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  padding: 10px 14px 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -153,17 +172,38 @@
 
 .details {
   display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 6px 16px;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 6px 10px;
   margin: 0;
-  font-size: 13px;
+}
+
+.details div {
+  display: contents;
 }
 
 .details dt {
   color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 17px;
 }
 
 .details dd {
+  min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chevron {
+    transition: transform 140ms var(--ds-ease-in-out);
+  }
+}
+
+@media (max-width: 680px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
