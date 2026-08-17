@@ -6,7 +6,7 @@ import { parse } from 'yaml'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { DSH_HOME_ENV } from '@deepseek-ai/dsh-home-paths'
-import { homePatchPath, readHomePatchEntries } from '../src/patch-store.ts'
+import { homePatchPath, readHomePatchEntries, writeHomePatchEntries } from '../src/patch-store.ts'
 import { validateServerConfig } from '../src/config.ts'
 import { McpInventoryGateway } from '../src/index.ts'
 
@@ -90,6 +90,9 @@ describe('McpInventoryGateway upsert', () => {
       '- id: mcp-http',
       "  name: '@deepseek-ai/dsh-mcp-client'",
       '  config: { transport: streamable-http, serverName: remote, url: https://old }',
+      '- id: mcp-fs',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config: { transport: stdio, serverName: fs, command: node }',
     ].join('\n'), 'utf8')
     const inventory = await gateway()
 
@@ -101,13 +104,14 @@ describe('McpInventoryGateway upsert', () => {
 
     expect(view).toMatchObject({ entryId: 'mcp-http', serverName: 'remote', transport: 'streamable-http' })
     const entries = readHomePatchEntries()
-    expect(entries).toHaveLength(2)
+    expect(entries).toHaveLength(3)
     expect(entries[0]).toEqual({ id: 'other-plugin', name: '@deepseek-ai/dsh-example', config: { keep: true } })
     expect(entries[1]).toEqual({
       id: 'mcp-http',
       name: '@deepseek-ai/dsh-mcp-client',
       config: expect.objectContaining({ transport: 'streamable-http', serverName: 'remote', url: 'https://new.example.com/sse' }) as Record<string, unknown>,
     })
+    expect(entries[2]).toMatchObject({ id: 'mcp-fs', name: '@deepseek-ai/dsh-mcp-client' })
   })
 
   it('rejects an id collision with a non-MCP entry', async () => {
@@ -179,6 +183,7 @@ describe('McpInventoryGateway upsert', () => {
   })
 
   it('omits the env block entirely when the editor sends no env', async () => {
+    useHome()
     const inventory = await gateway()
     const view = inventory.upsert({ transport: 'stdio', serverName: 'plain', command: 'node' })
     expect(view).toMatchObject({ entryId: 'mcp-plain', serverName: 'plain' })
@@ -337,5 +342,55 @@ describe('patch-store round trips', () => {
       "  name: '@deepseek-ai/dsh-a'",
     ].join('\n'), 'utf8')
     expect(readHomePatchEntries()).toEqual([{ id: 'a', name: '@deepseek-ai/dsh-a' }])
+  })
+
+  it('flattens insert rows and preserves foreign and malformed rows on write', () => {
+    const home = useHome()
+    writeFileSync(join(home, HOME_PATCH_FILENAME), [
+      '- 42',
+      '- insert:',
+      '    - 7',
+      '    - id: group-child',
+      '      group: true',
+      '- insert:',
+      '    - id: foreign-child',
+      "      name: '@deepseek-ai/dsh-example'",
+      '    - id: mcp-a',
+      "      name: '@deepseek-ai/dsh-mcp-client'",
+      '      config: { transport: stdio, serverName: a, command: node }',
+      '- id: mcp-group',
+      '  insert:',
+      '    - id: mcp-c',
+      "      name: '@deepseek-ai/dsh-mcp-client'",
+      '- id: odd',
+      '  name: 42',
+      '- id: mcp-b',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config: { transport: stdio, serverName: b, command: node }',
+    ].join('\n'), 'utf8')
+
+    expect(readHomePatchEntries().map(entry => entry.id)).toEqual(
+      ['group-child', 'foreign-child', 'mcp-a', 'mcp-c', 'odd', 'mcp-b'],
+    )
+    expect(readHomePatchEntries().find(entry => entry.id === 'odd')).toEqual({ id: 'odd', name: '' })
+
+    // Rewriting keeps scalar/foreign/group rows and re-emits the MCP rows as
+    // their own insert lists (mcp-a and the mcp-group child are dropped).
+    writeHomePatchEntries([
+      { id: 'mcp-b', name: '@deepseek-ai/dsh-mcp-client', config: { transport: 'stdio', serverName: 'b', command: 'node' } },
+      { id: 'mcp-empty', name: '@deepseek-ai/dsh-mcp-client' },
+    ])
+    const raw = readFileSync(homePatchPath(), 'utf8')
+    expect(raw).toContain('- 42')
+    expect(raw).toContain('- 7')
+    expect(raw).toContain('foreign-child')
+    expect(raw).toContain('group-child')
+    expect(raw).toContain('odd')
+    expect(raw).toContain('mcp-b')
+    expect(raw).toContain('mcp-empty')
+    expect(raw).not.toContain('mcp-a')
+    expect(readHomePatchEntries().map(entry => entry.id)).toEqual(
+      ['group-child', 'foreign-child', 'odd', 'mcp-b', 'mcp-empty'],
+    )
   })
 })

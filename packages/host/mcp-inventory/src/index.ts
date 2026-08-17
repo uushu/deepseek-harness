@@ -15,7 +15,7 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 // Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import { validateServerConfig } from './config.ts'
-import { readHomePatchEntries, writeHomePatchEntries } from './patch-store.ts'
+import { readHomePatchEntries, writeHomePatchEntries, isMcpClientName } from './patch-store.ts'
 import type {
   McpEntryId,
   McpFiberPhase,
@@ -56,10 +56,7 @@ const FIBER_PHASE = {
 } as const satisfies Record<FiberState, McpFiberPhase>
 
 /** Whether one Loader entry is an mcp-client instance (package specifier or `cordis:` builtin form). */
-function isMcpClientEntry(moduleName: string): boolean {
-  const normalized = moduleName.startsWith('cordis:') ? moduleName.slice(7) : moduleName
-  return normalized === MCP_CLIENT_MODULE || normalized.endsWith(`/${MCP_CLIENT_MODULE}`)
-}
+const isMcpClientEntry = isMcpClientName
 
 /** Key NAMES of a string-keyed env/header map — values are secrets and never leave the host. */
 function keyNames(values: unknown): readonly string[] | undefined {
@@ -229,14 +226,15 @@ export class McpInventoryGateway extends TypertRemoteService {
   upsert(input: McpServerConfigInput): McpServerView {
     const config = validateServerConfig(input)
     const entries = readHomePatchEntries()
-    const existing = entries.find(entry =>
-      isMcpClientEntry(entry.name)
-      && (entry.config as Record<string, unknown> | undefined)?.serverName === config.serverName)
+    const mcpEntries = entries.filter(entry => isMcpClientEntry(entry.name))
+    const existing = mcpEntries.find(entry =>
+      (entry.config as Record<string, unknown> | undefined)?.serverName === config.serverName)
     if (existing !== undefined) {
-      const index = entries.indexOf(existing)
       const stored = resolveStoredConfig(config, existing.config)
-      entries[index] = { id: existing.id, name: existing.name, config: stored }
-      writeHomePatchEntries(entries)
+      const next = mcpEntries.map(entry => entry === existing
+        ? { id: existing.id, name: existing.name, config: stored }
+        : entry)
+      writeHomePatchEntries(next)
       return {
         entryId: mcpEntryId(existing.id),
         enabled: true,
@@ -249,8 +247,7 @@ export class McpInventoryGateway extends TypertRemoteService {
       throw new Error(`patch entry id "${id}" is already used by a non-MCP plugin`)
     }
     const stored = resolveStoredConfig(config, undefined)
-    entries.push({ id, name: MCP_CLIENT_MODULE, config: stored })
-    writeHomePatchEntries(entries)
+    writeHomePatchEntries([...mcpEntries, { id, name: MCP_CLIENT_MODULE, config: stored }])
     return {
       entryId: mcpEntryId(id),
       enabled: true,
@@ -270,10 +267,10 @@ export class McpInventoryGateway extends TypertRemoteService {
   @Remote('removeServer')
   removeServer(serverName: string): McpRemoveResult {
     const entries = readHomePatchEntries()
-    const next = entries.filter(entry =>
-      !(isMcpClientEntry(entry.name)
-        && (entry.config as Record<string, unknown> | undefined)?.serverName === serverName))
-    const removed = next.length !== entries.length
+    const mcpEntries = entries.filter(entry => isMcpClientEntry(entry.name))
+    const next = mcpEntries.filter(entry =>
+      (entry.config as Record<string, unknown> | undefined)?.serverName !== serverName)
+    const removed = next.length !== mcpEntries.length
     writeHomePatchEntries(next)
     return { removed }
   }
