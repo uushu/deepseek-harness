@@ -2,8 +2,14 @@
 
 English | [中文](harness-site-visual-spec.zh.md)
 
-本规格固化「Harness 官网风」主题（`ui-theme` 内置 `harness`）的最终视觉参数，
-是视觉验收与后续校准的单一对照物。取值优先级固定为：
+本规格固化「Harness 官网风」皮肤的最终视觉参数，是视觉验收与后续校准的
+单一对照物。**实现形态：独立插件** `@deepseek-ai/dsh-client-ui-harness`
+（`packages/client/ui-harness`）——token 覆盖走 `ctx.theme.overrideTokens`
+（`{light,dark}` 双色板）、CSS 以 `html[data-dsh-harness]` 门控、设置里有
+总开关（Plugins 卡）与模糊/浓度旋钮（外观区下方）、关闭即完全还原原生 UI。
+**六个核心包（ui-theme/ui-layout/ui-sidebar/ui-conversation/ui-primitives/
+ui-settings-general）已还原为未加皮肤前的原样**——此规格只描述皮肤参数，
+不再涉及核心主题注册。取值优先级固定为：
 
 1. DeepSeek Harness 官网实测值（2026-08 抓取 `style.css` 的 `[data-theme=dark]`
    块与实时页面截图采样）；
@@ -114,11 +120,13 @@ AmbientBackground.module.css），截图后只改这里。
 > 不携带 filter/transform——这是仓库既有先例（ConversationRoot 避免 transform
 > 包含块）的延伸，已实测设置弹窗恢复视口居中 800×800、composer 菜单正常弹出。
 
-## 5a. 侧栏主题入口（ThemeEntry，ui-theme）
+## 5a. 设置面（ui-harness 插件）
 
-设置入口旁边的图标按钮（无文字），点击弹出四个内置偏好的皮肤菜单
-（浅色/深色/跟随系统/Harness，带图标与选中勾）。Harness 自定义皮肤从此
-入口进入；设置的「外观」行已移除（需求：入口只显示皮肤图标，不显示文字）。
+- **Plugins 卡**（`settings.plugin.item`，id `harness`）：总开关——关闭即
+  卸载 token 层/属性/氛围/缝线，原生 UI 原样恢复；开为默认。
+- **外观区下方旋钮**（`settings.general.item`，order 11）：模糊（0–40px）
+  与玻璃浓度（0–100，50 = 出厂）。
+- 皮肤默认开启；localStorage 持久化（`dsh.ui-harness.*`）。
 
 ## 6. 几何
 

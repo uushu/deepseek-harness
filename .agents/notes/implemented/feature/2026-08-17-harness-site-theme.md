@@ -57,6 +57,25 @@ English | [中文](2026-08-17-harness-site-theme.zh.md)
   `tsc -b tsconfig.client.json` 干净；实机验证 harness 有环境层+毛玻璃、
   切 dark 后环境层卸载/毛玻璃消失、切回恢复、设置内无外观行。
 
+## 四期：插件化重构（核心还原 + ui-harness 独立皮肤插件）
+
+- **核心还原**：六个核心包（ui-theme/ui-layout/ui-sidebar/ui-conversation/
+  ui-primitives/ui-settings-general）全部还原到未加皮肤前的 8f0a45ec09
+  状态——`THEME_PREFERENCES` 回到 light/dark/system、AmbientBackground/
+  ParticleField/ThemeEntry/AppearanceRow(harness 项) 删除、boot-theme 不再
+  写 data-ds-theme、settings 弹窗回到原地渲染（portal 与 react-dom 依赖
+  一并移除）。皮肤不再注册为内置主题，不再改动共享 schema。
+- **新插件 `@deepseek-ai/dsh-client-ui-harness`**（packages/client/ui-harness，
+  参照 Aqua 架构）：`ctx.theme.overrideTokens` 覆盖栈（`{light,dark}` 双色板，
+  深海军蓝/冷白蓝玻璃）、CSS 全部以 `html[data-dsh-harness]` 门控（含
+  ::before 模糊层，避免 fixed 弹层包含块）、运行时 seam-stamper 打
+  data-* 缝（零核心改动）、确定性粒子场、Plugins 总开关卡 + 外观区
+  模糊/浓度旋钮（localStorage 持久化，默认开启），关闭即原样恢复。
+  已接入 tsconfig.client.json、web-app 组合 roster 与 pnpm workspace。
+- 验收：7 包 1116 测试全绿（ui-harness 新增 8 例）、`tsc -b tsconfig.client.json`
+  干净、client lib 与 web shell 构建通过。注：web 组合补丁在服务启动时固化，
+  运行中的 `dsh web` 需重启才加载新插件（manifest 首帧才含 ui-harness）。
+
 ## 已知边界
 
 - `api-catalog.ts` 的 `ThemePreference` 声明是 `typeof THEME_PREFERENCES[number]` 引用，无需重新生成；`gen-cordis-api` 目前被工作区既有 session 事件文档缺参阻塞，与本次改动无关。
