@@ -15,8 +15,7 @@ import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runti
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { AppearanceRowInjected } from './AppearanceRow.tsx'
-import { AppearanceRow } from './AppearanceRow.tsx'
+import type { ThemeEntryInjected } from './ThemeEntry.tsx'
 import { ThemeEntry } from './ThemeEntry.tsx'
 import { createAppearanceRowStore } from './settings-store.ts'
 import { HARNESS_THEME_ID, HARNESS_TOKENS } from '../harness-theme.ts'
@@ -27,7 +26,6 @@ import {
 } from '../theme-settings.ts'
 
 export type { ThemeEntryComponentProps, ThemeEntryInjected } from './ThemeEntry.tsx'
-export type { AppearanceRowComponentProps, AppearanceRowInjected } from './AppearanceRow.tsx'
 export type { AppearanceRowState } from './settings-store.ts'
 export type { ThemeKey } from './locales.ts'
 export type { ThemePreference, ThemeSettings } from '../theme-settings.ts'
@@ -382,10 +380,10 @@ function dynamicToken(name: string): ThemeTokenInspection {
 export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
 
 /**
- * Client plugin body: provide the theme service and register the two
- * feature-owned theme surfaces — the settings General Appearance row
- * (light/dark/system/harness cubes, the original full settings surface) and
- * the sidebar foot skin entry (palette icon quick picker).
+ * Client plugin body: provide the theme service and register the theme
+ * feature's surface — the sidebar foot skin entry (palette icon quick picker)
+ * with the four theme preferences. Theme options (light/dark/system/harness)
+ * are NOT shown under settings "Appearance" (外观不展示主题选项).
  * @param ctx - client cordis context.
  */
 export function apply(ctx: ClientContext): void {
@@ -401,7 +399,7 @@ export function apply(ctx: ClientContext): void {
     bound?.sync(snapshot.preference, snapshot.revision)
   }
   ctx.on('theme/change', sync)
-  const injected = (actions: BoundActions<typeof store>): AppearanceRowInjected => {
+  const injected = (actions: BoundActions<typeof store>): ThemeEntryInjected => {
     bound = actions
     // Re-sync from the getter so no event is lost between registration and
     // first render (the store's revision guard drops stale duplicates).
@@ -410,16 +408,7 @@ export function apply(ctx: ClientContext): void {
       setTheme: (id) => { theme.setTheme(id) },
     }
   }
-  // 设置 → 通用 → 外观行：深浅 / 跟随系统 / Harness 的完整设置面（原位置）。
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'appearance',
-    order: 10,
-    store,
-    locale: SETTINGS_NS,
-    inject: injected,
-  }, AppearanceRow))
-  // 侧栏 footer 快捷入口（皮肤图标 + 菜单，同一偏好）。'sidebar.footer.action'
+  // 侧栏 footer 皮肤快捷入口（palette 图标 + 四主题菜单）。'sidebar.footer.action'
   // 的槽位类型在 ui-sidebar 声明，而 ui-theme 无法引用它（tsc 项目引用成环：
   // ui-sidebar → ui-layout → ui-theme）。运行时注册由侧栏 shell 校验；此处
   // 仅擦除该槽位的静态类型检查（边界取舍）。
