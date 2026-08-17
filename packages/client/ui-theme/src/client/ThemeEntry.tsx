@@ -1,17 +1,14 @@
 /**
- * Sidebar-foot 主题入口（皮肤选择器）：设置在设置入口旁边的图标按钮
- * （不显示文字），点击弹出四个内置偏好（浅色/深色/跟随系统/Harness）的
- * 菜单。选中态跟随持久化偏好（store 镜像，与设置内 Appearance 行同一套
- * 数据源）；Harness 自定义皮肤从此入口进入，不再放在设置的「外观」处。
- * 纯呈现：只读 store 镜像 + 调用注入的 setTheme，不持有任何业务状态。
+ * Sidebar-foot 主题入口（自定义皮肤）：设置在设置入口旁的 palette 图标按钮
+ * （不显示文字），点击弹出菜单。菜单只含 Harness——深浅/跟随系统属于设置
+ * 「外观」行的标准主题选项，Harness 是自定义皮肤主题选项，单独放这里。
+ * 选中态跟随持久化偏好（store 镜像）。纯呈现：只读 store 镜像 + 调用注入的
+ * setTheme，不持有任何业务状态。
  * @module @deepseek-ai/dsh-client-ui-theme
  */
 import { useRef, useState } from 'react'
 import clsx from 'clsx'
-import {
-  IconDarkOutline16, IconFollowsystemOutline16, IconHarnessOutline16,
-  IconLightOutline16, IconPaletteOutline16, Menu, Tooltip,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconHarnessOutline16, IconPaletteOutline16, Menu, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { GlobalStandardProps, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the runtime's GlobalStandardProps merge (useSessions /
@@ -40,11 +37,8 @@ export type ThemeEntryComponentProps =
   & ThemeEntryInjected
   & GlobalStandardProps
 
-/** 菜单项顺序与图标（Light/Dark/System/Harness 官网风）。 */
-const OPTIONS: readonly { id: ThemePreference; labelKey: ThemeKey; Icon: typeof IconLightOutline16 }[] = [
-  { id: 'light', labelKey: 'appearance.light', Icon: IconLightOutline16 },
-  { id: 'dark', labelKey: 'appearance.dark', Icon: IconDarkOutline16 },
-  { id: 'system', labelKey: 'appearance.system', Icon: IconFollowsystemOutline16 },
+/** 菜单项：仅 Harness（自定义皮肤主题选项）。 */
+const OPTIONS: readonly { id: ThemePreference; labelKey: ThemeKey; Icon: typeof IconHarnessOutline16 }[] = [
   { id: 'harness', labelKey: 'appearance.harness', Icon: IconHarnessOutline16 },
 ]
 

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-/** ThemeEntry（侧栏主题入口）行为：图标-only 触发（无文字）、点击弹出
- * 四个主题菜单、选中态跟随持久化偏好、选择驱动 setTheme 并关闭。 */
+/** ThemeEntry（侧栏皮肤入口）行为：图标-only 触发（无文字）、菜单只含
+ * Harness（深浅/跟随系统属设置「外观」行的标准主题选项）、选中态跟随
+ * 持久化偏好、选择驱动 setTheme 并关闭。 */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createSnapshotStore, type SessionListState, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
@@ -61,15 +62,16 @@ describe('ThemeEntry', () => {
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu')
   })
 
-  it('opens the menu listing the four preferences', () => {
+  it('opens a menu listing only Harness (light/dark/system live in settings Appearance)', () => {
     mount()
     fireEvent.click(screen.getByRole('button', { name: 'Appearance' }))
-    for (const label of ['Light', 'Dark', 'System', 'Harness']) {
-      expect(screen.getByRole('menuitem', { name: label })).toBeDefined()
-    }
+    expect(screen.getByRole('menuitem', { name: 'Harness' })).toBeDefined()
+    expect(screen.queryByRole('menuitem', { name: 'Light' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Dark' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'System' })).toBeNull()
   })
 
-  it('selecting an option drives setTheme and closes the menu', () => {
+  it('selecting Harness drives setTheme and closes the menu', () => {
     const b = mount('dark')
     fireEvent.click(screen.getByRole('button', { name: 'Appearance' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Harness' }))
@@ -77,25 +79,20 @@ describe('ThemeEntry', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
-  it('marks the current preference as selected', () => {
-    mount('system')
+  it('marks Harness as selected when the harness preference is active', () => {
+    mount('harness')
     fireEvent.click(screen.getByRole('button', { name: 'Appearance' }))
     // Menu 的选中标记是尾随 check（.selected 行类），非 aria-checked。
-    expect(screen.getByRole('menuitem', { name: 'System' }).className).toContain('selected')
-    expect(screen.getByRole('menuitem', { name: 'Dark' }).className).not.toContain('selected')
+    expect(screen.getByRole('menuitem', { name: 'Harness' }).className).toContain('selected')
   })
 
   it('selection follows the store mirror, not the click echo', () => {
     const b = mount('dark')
     const trigger = screen.getByRole('button', { name: 'Appearance' })
     fireEvent.click(trigger)
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Light' }))
-    expect(b.setTheme).toHaveBeenCalledWith('light')
-    // 选择后菜单关闭；重开时 store 尚未同步，旧选中仍为 Dark。
-    fireEvent.click(trigger)
-    expect(screen.getByRole('menuitem', { name: 'Dark' }).className).toContain('selected')
-    act(() => { b.store.actions.sync('light', 1) })
-    // store 同步后选中移到 Light（无需重开菜单）。
-    expect(screen.getByRole('menuitem', { name: 'Light' }).className).toContain('selected')
+    // 未选中 harness 时无勾。
+    expect(screen.getByRole('menuitem', { name: 'Harness' }).className).not.toContain('selected')
+    act(() => { b.store.actions.sync('harness', 1) })
+    expect(screen.getByRole('menuitem', { name: 'Harness' }).className).toContain('selected')
   })
 })
