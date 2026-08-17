@@ -4,10 +4,7 @@
    panel is a two-column layout — 188px nav rail + content column with a
    54px header and the 24px-padded options area. */
 
-/* Trigger row: match the other wide sidebar controls' compact vertical rhythm.
-   Full-bleed row restored (width +8px / negative margins cancel the foot
-   inset); the skin entry floats at the row's right end, so the label keeps
-   its seat. */
+/* Trigger row: match the other wide sidebar controls' compact vertical rhythm. */
 .trigger {
   flex: none;
   display: flex;
@@ -91,27 +88,6 @@
      styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-}
-
-/* Harness 官网风（暗色系）：设置面板毛玻璃（规范 §58 的 frosted 语义）——
-   85% 半透明深海军蓝 + ::before 层 blur(24px)，粒子/光晕在面板后柔化成
-   微光；不直接写在 .panel 上（避免 fixed 包含块，见视觉规格 §5 约束）。 */
-:global(body[data-ds-theme='harness']) .panel {
-  position: relative;
-  isolation: isolate;
-  background: rgba(12, 23, 38, 0.85);
-  border: 1px solid rgba(180, 210, 245, 0.1);
-  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
-}
-
-:global(body[data-ds-theme='harness']) .panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  backdrop-filter: blur(24px) saturate(114%);
-  pointer-events: none;
 }
 
 /* Nav rail (figma .Setting-nav 501:29958): 188 wide, pad (12,22,12,0),

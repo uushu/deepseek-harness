@@ -6,7 +6,6 @@ export const zh = {
   'appearance.light': '浅色',
   'appearance.dark': '深色',
   'appearance.system': '跟随系统',
-  'appearance.harness': 'Harness',
 } satisfies Record<string, string>
 
 /** The settings.theme namespace key union. */
@@ -18,5 +17,4 @@ export const en = {
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
   'appearance.system': 'System',
-  'appearance.harness': 'Harness',
 } satisfies Record<ThemeKey, string>

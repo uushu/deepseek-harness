@@ -20,18 +20,12 @@
   /* 525px cap inside the 736 column; percentage keeps narrow windows sane. */
   max-width: 100%;
   background: var(--dsw-specific-bubble);
-  border-radius: 12px;
+  border-radius: 22px;
   /* 44px single-line bubble: 24 line + 10 vertical padding each side. */
-  padding: 10px 14px;
+  padding: 10px 16px;
   font-size: 16px;
   line-height: 24px;
   color: var(--dsw-alias-label-primary);
-}
-
-/* Harness 官网风（暗色系）：用户弱气泡 —— 细冷边 + 低对比填充，不发光
-   （规范 §43）。 */
-:global(body[data-ds-theme='harness']) .bubble {
-  border: 1px solid rgba(176, 205, 235, 0.065);
 }
 
 .contextRow {

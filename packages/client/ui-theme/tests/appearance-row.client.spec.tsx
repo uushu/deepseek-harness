@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-/** AppearanceRow 行为：三个标准主题方块（浅色/深色/跟随系统；Harness 属
- * 主题选项、不在外观行），选中跟随持久化偏好，点击驱动 setTheme。 */
+/** AppearanceRow behavior: three cubes, selection follows the persisted
+ * preference, clicks drive setTheme. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createSnapshotStore, type SessionListState, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
@@ -17,7 +17,6 @@ const COPY: Record<string, string> = {
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
   'appearance.system': 'System',
-  'appearance.harness': 'Harness',
 }
 
 /** Empty global standard-kit hooks (the row reads neither). */
@@ -55,17 +54,12 @@ const pressed = (name: RegExp): string | null =>
   screen.getByRole('button', { name }).getAttribute('aria-pressed')
 
 describe('AppearanceRow', () => {
-  it('renders the title and the three standard cubes with the preference cube selected', () => {
+  it('renders the title and three cubes with the preference cube selected', () => {
     mount('dark')
     expect(screen.getByText('Appearance')).toBeDefined()
     expect(pressed(/Dark/)).toBe('true')
     expect(pressed(/Light/)).toBe('false')
     expect(pressed(/System/)).toBe('false')
-  })
-
-  it('never renders a Harness cube (Harness is a theme option in the sidebar entry)', () => {
-    mount('harness')
-    expect(screen.queryByRole('button', { name: 'Harness' })).toBeNull()
   })
 
   it('click drives setTheme; selection follows the store mirror, not the click echo', () => {

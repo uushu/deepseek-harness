@@ -1,10 +1,9 @@
 /**
  * Appearance preference row registered into the General section item slot
- * (figma 501:30012 'Frame 2117131228'): title + preference cubes. Shows the
- * standard theme preferences — light / dark / system only. Harness is a theme
- * option (the custom skin) and lives in the sidebar palette entry's menu, not
- * here (外观不展示 Harness 主题选项).
- * Selection follows the persisted preference, never the resolved active theme.
+ * (figma 501:30012 'Frame 2117131228'): title + three preference cubes.
+ * Registered by this package — the theme feature owns its own settings
+ * surface. Selection follows the persisted preference, never the resolved
+ * active theme.
  */
 import clsx from 'clsx'
 import {

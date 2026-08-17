@@ -15,23 +15,19 @@ import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runti
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { ThemeEntry } from './ThemeEntry.tsx'
 import type { AppearanceRowInjected } from './AppearanceRow.tsx'
 import { AppearanceRow } from './AppearanceRow.tsx'
 import { createAppearanceRowStore } from './settings-store.ts'
-import { HARNESS_THEME_ID, HARNESS_TOKENS } from '../harness-theme.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
 import {
   DEFAULT_PREFERENCE, isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
   type ThemePreference, type ThemeSettings,
 } from '../theme-settings.ts'
 
-export type { ThemeEntryComponentProps, ThemeEntryInjected } from './ThemeEntry.tsx'
 export type { AppearanceRowComponentProps, AppearanceRowInjected } from './AppearanceRow.tsx'
 export type { AppearanceRowState } from './settings-store.ts'
 export type { ThemeKey } from './locales.ts'
 export type { ThemePreference, ThemeSettings } from '../theme-settings.ts'
-export { HARNESS_THEME_ID, HARNESS_TOKENS } from '../harness-theme.ts'
 
 /** Namespace owning this feature's settings-row copy. */
 export const SETTINGS_NS = 'settings.theme'
@@ -122,8 +118,6 @@ declare module '@deepseek-ai/cordis' {
 const BUILTIN_THEMES: readonly ThemeDefinition[] = Object.freeze([
   Object.freeze({ id: 'light', colorScheme: 'light' as const, tokens: Object.freeze({}) }),
   Object.freeze({ id: 'dark', colorScheme: 'dark' as const, tokens: Object.freeze({}) }),
-  // Harness 官网风：dark base palette + alias token 覆盖（见 harness-theme.ts）。
-  Object.freeze({ id: HARNESS_THEME_ID, colorScheme: 'dark' as const, tokens: Object.freeze({ ...HARNESS_TOKENS }) }),
 ])
 
 const BUILTIN_INSPECT_TOKENS: readonly ThemeTokenInspection[] = Object.freeze([
@@ -382,10 +376,9 @@ function dynamicToken(name: string): ThemeTokenInspection {
 export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
 
 /**
- * Client plugin body: provide the theme service and register the two theme
- * surfaces — the settings General Appearance row (light/dark/system cubes;
- * Harness stays out of Appearance) and the sidebar foot skin entry whose menu
- * holds the Harness custom-skin theme option.
+ * Client plugin body: provide the theme service and register the
+ * feature-owned Appearance preference row into the General section's item
+ * slot (a feature owns its settings surface).
  * @param ctx - client cordis context.
  */
 export function apply(ctx: ClientContext): void {
@@ -410,7 +403,6 @@ export function apply(ctx: ClientContext): void {
       setTheme: (id) => { theme.setTheme(id) },
     }
   }
-  // 设置 → 通用 → 外观行：浅色 / 深色 / 跟随系统（Harness 属主题选项，不在此列）。
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
     id: 'appearance',
@@ -419,16 +411,4 @@ export function apply(ctx: ClientContext): void {
     locale: SETTINGS_NS,
     inject: injected,
   }, AppearanceRow))
-  // 侧栏 footer 皮肤入口：palette 图标 + 仅 Harness 的菜单。'sidebar.footer.action'
-  // 的槽位类型在 ui-sidebar 声明，而 ui-theme 无法引用它（tsc 项目引用成环：
-  // ui-sidebar → ui-layout → ui-theme）。运行时注册由侧栏 shell 校验；此处
-  // 仅擦除该槽位的静态类型检查（边界取舍）。
-  ctx.slots.inject('sidebar.footer.action' as never, () => ctx.slots.register({
-    name: 'sidebar.footer.action' as never,
-    id: 'theme',
-    order: 10,
-    store,
-    locale: SETTINGS_NS,
-    inject: injected,
-  } as never, ThemeEntry as never))
 }

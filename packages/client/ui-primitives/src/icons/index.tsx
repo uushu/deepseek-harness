@@ -727,36 +727,6 @@ export const IconFollowsystemOutline16 = ({ size = 16, className }: IconProps) =
   </svg>
 )
 
-/** ic_ds_harness_outline_16（Harness 官网风主题：六边形插件光环） */
-export const IconHarnessOutline16 = ({ size = 16, className }: IconProps) => (
-  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M8 1.5L13.5 4.5V11.5L8 14.5L2.5 11.5V4.5L8 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-    <path
-      d="M8 4.6V11.4M4.9 6.3L11.1 9.7M11.1 6.3L4.9 9.7"
-      stroke="currentColor"
-      strokeWidth="0.9"
-      strokeLinecap="round"
-      opacity="0.55"
-    />
-    <circle cx="8" cy="8" r="1.6" fill="currentColor" />
-  </svg>
-)
-
-/** ic_ds_palette_outline_16（主题/皮肤入口：调色板） */
-export const IconPaletteOutline16 = ({ size = 16, className }: IconProps) => (
-  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M8 1.7C4.52 1.7 1.7 4.52 1.7 8C1.7 11.48 4.52 14.3 8 14.3C8.65 14.3 9.2 13.75 9.2 13.1C9.2 12.8 9.08 12.53 8.87 12.33C8.66 12.12 8.54 11.85 8.54 11.55C8.54 10.9 9.09 10.35 9.74 10.35H11.2C13.19 10.35 14.3 9.24 14.3 7.25C14.3 4.14 11.48 1.7 8 1.7Z"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinejoin="round"
-    />
-    <circle cx="5.3" cy="6.3" r="1" fill="currentColor" />
-    <circle cx="8" cy="4.8" r="1" fill="currentColor" />
-    <circle cx="10.7" cy="6.3" r="1" fill="currentColor" />
-  </svg>
-)
-
 /** ic_ds_data_outline_16 */
 export const IconDataOutline16 = ({ size = 16, className }: IconProps) => (
   <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

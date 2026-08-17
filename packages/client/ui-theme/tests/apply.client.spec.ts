@@ -1,7 +1,6 @@
 /** ui-theme apply wiring: service provision, settings dictionaries riding the
- * locale service, declaration-aware registrations (settings Appearance row +
- * sidebar foot skin entry), snapshot projection into the preference store,
- * and HMR collapse recovery. */
+ * locale service, declaration-aware Appearance row registration, snapshot
+ * projection into the row store, and HMR collapse recovery. */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
@@ -12,17 +11,13 @@ import { apply, inject, SETTINGS_NS } from '@deepseek-ai/dsh-client-ui-theme/cli
 import type { AppearanceRowInjected, ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { THEME_SETTINGS_NAMESPACE, ThemeSettingsSchema } from '../src/theme-settings.ts'
 import { AppearanceRow } from '../src/client/AppearanceRow.tsx'
-import { ThemeEntry } from '../src/client/ThemeEntry.tsx'
 import type { createAppearanceRowStore } from '../src/client/settings-store.ts'
 
 // The service reads its initial locale from the browser; these specs assert
 // the shipped Chinese copy, so they state the browser they assume.
 usePinnedBrowserLanguages('zh-CN')
 
-/** 设置 General 外观行（完整设置面）。 */
-const GENERAL_SLOT = 'settings.general.item'
-/** 侧栏 footer 皮肤快捷入口。 */
-const FOOTER_SLOT = 'sidebar.footer.action'
+const SLOT = 'settings.general.item'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -68,16 +63,10 @@ async function bench(isLoopback = true) {
   }
 }
 
-/** Stand in for the settings shell + sidebar shell: declare both theme slots from root. */
+/** Stand in for the settings shell: declare the General item slot from root. */
 function declareItems(slots: SlotRegistry): () => void {
   return slots.register(
-    {
-      name: 'root',
-      children: {
-        [GENERAL_SLOT]: { kind: 'list', scope: 'root' },
-        [FOOTER_SLOT]: { kind: 'list', scope: 'root' },
-      },
-    } as never,
+    { name: 'root', children: { [SLOT]: { kind: 'list', scope: 'root' } } } as never,
     () => null,
   )
 }
@@ -85,19 +74,11 @@ function declareItems(slots: SlotRegistry): () => void {
 /** Mirror the framework's inject choreography: bake a real instance from the
  * declared handle and hand its actions to the entry's inject factory. */
 function faceOf(slots: SlotRegistry) {
-  const entry = slots.entries(GENERAL_SLOT).find(e => e.component === AppearanceRow)!
+  const entry = slots.entries(SLOT).find(e => e.component === AppearanceRow)!
   const handle = entry.store as ReturnType<typeof createAppearanceRowStore>
   const instance = handle.create()
   const face = (entry.inject as unknown as (a: typeof instance.actions) => AppearanceRowInjected)(instance.actions)
   return { entry, instance, face }
-}
-
-/** Both theme surfaces registered: the settings Appearance row and the sidebar skin entry. */
-function entriesOf(slots: SlotRegistry): { general: unknown; footer: unknown } {
-  return {
-    general: slots.entries(GENERAL_SLOT).find(e => e.component === AppearanceRow),
-    footer: slots.entries(FOOTER_SLOT).find(e => e.component === ThemeEntry),
-  }
 }
 
 describe('ui-theme apply', () => {
@@ -105,26 +86,23 @@ describe('ui-theme apply', () => {
     expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'settingsScope'])
   })
 
-  it('provides the service, registers localized copy, and registers both surfaces (declaration before or after apply)', async () => {
+  it('provides the service, registers localized copy, and registers the row (declaration before or after apply)', async () => {
     const before = await bench()
     declareItems(before.slots)
     await before.ctx.plugin({ inject: [...inject], apply }).await()
     expect(before.locale.bind(SETTINGS_NS)('appearance.title')).toBe('外观')
     before.locale.setLocale('en')
     expect(before.locale.bind(SETTINGS_NS)('appearance.title')).toBe('Appearance')
-    const { general, footer } = entriesOf(before.slots)
-    expect(general).toMatchObject({ options: { id: 'appearance', order: 10 } })
-    expect(footer).toMatchObject({ options: { id: 'theme', order: 10 } })
+    const entry = before.slots.entries(SLOT).find(e => e.component === AppearanceRow)!
+    expect(entry.options).toMatchObject({ id: 'appearance', order: 10 })
 
     const after = await bench()
     const fiber = after.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(after.slots.entries(GENERAL_SLOT)).toHaveLength(0)
-    expect(after.slots.entries(FOOTER_SLOT)).toHaveLength(0)
+    expect(after.slots.entries(SLOT)).toHaveLength(0)
     declareItems(after.slots)
     await Promise.resolve()
-    expect(after.slots.entries(GENERAL_SLOT).some(e => e.component === AppearanceRow)).toBe(true)
-    expect(after.slots.entries(FOOTER_SLOT).some(e => e.component === ThemeEntry)).toBe(true)
+    expect(after.slots.entries(SLOT).some(e => e.component === AppearanceRow)).toBe(true)
   })
 
   it('projects service snapshots into the row store and routes face writes back', async () => {
@@ -138,9 +116,8 @@ describe('ui-theme apply', () => {
     const { instance, face } = faceOf(b.slots)
     // The inject-time re-sync sealed the init window: the mirror is current.
     expect(instance.getSnapshot().preference).toBe('dark')
-    // Copy rides the standard locale seat: both entries declare the namespace.
-    expect(b.slots.entries(GENERAL_SLOT).find(e => e.component === AppearanceRow)!.locale).toBe(SETTINGS_NS)
-    expect(b.slots.entries(FOOTER_SLOT).find(e => e.component === ThemeEntry)!.locale).toBe(SETTINGS_NS)
+    // Copy rides the standard locale seat: the entry declares the namespace.
+    expect(b.slots.entries(SLOT).find(e => e.component === AppearanceRow)!.locale).toBe(SETTINGS_NS)
 
     face.setTheme('system')
     expect(theme.getTheme().preference).toBe('system')
@@ -202,31 +179,26 @@ describe('ui-theme apply', () => {
     const b = await bench()
     const host = declareItems(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
-    expect(b.slots.entries(GENERAL_SLOT)).toHaveLength(1)
-    expect(b.slots.entries(FOOTER_SLOT)).toHaveLength(1)
+    expect(b.slots.entries(SLOT)).toHaveLength(1)
 
     // Collapse: the declarer dies, the cascade removes our entry while the
     // apply closure still holds its (now stale) disposer.
     host()
-    expect(b.slots.entries(GENERAL_SLOT)).toHaveLength(0)
-    expect(b.slots.entries(FOOTER_SLOT)).toHaveLength(0)
+    expect(b.slots.entries(SLOT)).toHaveLength(0)
 
     declareItems(b.slots)
     await Promise.resolve()
-    expect(b.slots.entries(GENERAL_SLOT).some(e => e.component === AppearanceRow)).toBe(true)
-    expect(b.slots.entries(FOOTER_SLOT).some(e => e.component === ThemeEntry)).toBe(true)
+    expect(b.slots.entries(SLOT).some(e => e.component === AppearanceRow)).toBe(true)
   })
 
-  it('teardown removes both entries and the dictionaries; teardown without a declaration is quiet', async () => {
+  it('teardown removes the row and the dictionaries; teardown without a declaration is quiet', async () => {
     const b = await bench()
     declareItems(b.slots)
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(b.slots.entries(GENERAL_SLOT)).toHaveLength(1)
-    expect(b.slots.entries(FOOTER_SLOT)).toHaveLength(1)
+    expect(b.slots.entries(SLOT)).toHaveLength(1)
     await fiber.dispose()
-    expect(b.slots.entries(GENERAL_SLOT)).toHaveLength(0)
-    expect(b.slots.entries(FOOTER_SLOT)).toHaveLength(0)
+    expect(b.slots.entries(SLOT)).toHaveLength(0)
     // Dictionary disposal: translation falls back to the bare key.
     expect(b.locale.bind(SETTINGS_NS)('appearance.title')).toBe('appearance.title')
 
@@ -235,7 +207,6 @@ describe('ui-theme apply', () => {
     const f2 = quiet.ctx.plugin({ inject: [...inject], apply })
     await f2.await()
     await f2.dispose()
-    expect(quiet.slots.entries(GENERAL_SLOT)).toHaveLength(0)
-    expect(quiet.slots.entries(FOOTER_SLOT)).toHaveLength(0)
+    expect(quiet.slots.entries(SLOT)).toHaveLength(0)
   })
 })

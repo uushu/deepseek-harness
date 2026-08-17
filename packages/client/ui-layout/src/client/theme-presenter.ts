@@ -12,14 +12,6 @@ import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
 /** Body attribute selecting the dark base palette in the token stylesheets. */
 export const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 
-/**
- * Body attribute carrying the resolved active theme id (`light`/`dark`/
- * `harness`). Theme-specific presentation CSS (e.g. the Harness atmosphere
- * surfaces) scopes on this — never on the dark-palette attribute, which the
- * dark base theme shares with harness.
- */
-export const THEME_ID_ATTRIBUTE = 'data-ds-theme'
-
 /** Applies theme snapshots to the document; one instance per plugin fiber. */
 export class ThemePresenter {
   /** Token names this presenter wrote in the last apply (its retraction set). */
@@ -48,7 +40,6 @@ export class ThemePresenter {
     const body = document.body
     if (scheme === 'dark') body.setAttribute(DARK_ATTRIBUTE, '')
     else body.removeAttribute(DARK_ATTRIBUTE)
-    body.setAttribute(THEME_ID_ATTRIBUTE, snapshot.active.id)
     for (const name of this.appliedTokens) body.style.removeProperty(name)
     this.appliedTokens = []
     for (const [name, value] of Object.entries(snapshot.active.tokens)) {
@@ -59,12 +50,11 @@ export class ThemePresenter {
     if (!this.themeColorMeta.isConnected) document.head.append(this.themeColorMeta)
   }
 
-  /** Retract root color-scheme, the palette/theme-id attributes, token variables, and the owned metadata node. */
+  /** Retract root color-scheme, the palette attribute, token variables, and the owned metadata node. */
   dispose(): void {
     document.documentElement.style.removeProperty('color-scheme')
     const body = document.body
     body.removeAttribute(DARK_ATTRIBUTE)
-    body.removeAttribute(THEME_ID_ATTRIBUTE)
     for (const name of this.appliedTokens) body.style.removeProperty(name)
     this.appliedTokens = []
     this.themeColorMeta.remove()
