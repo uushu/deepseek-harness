@@ -135,20 +135,9 @@ describe('ui-settings-skills browser plugin', () => {
     b.api.skills.list.mockResolvedValueOnce({ result: { ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } } })
     await expect(injected.list()).rejects.toThrow('skills.list failed: REMOTE_ERROR: unavailable')
 
-    // The config tab shares the same catalog face plus the write verbs.
+    // The config tab is a write-only form: write forwards with error mapping.
     const configTab = b.slots.entries('settings.skills.tab')[0]!
     const configInjected = (configTab.inject as unknown as () => SkillsConfigTabInjected)()
-    await expect(configInjected.list()).resolves.toEqual({
-      sessionless: false,
-      skills: [{ name: 'demo', description: 'd', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' }],
-    })
-    expect(b.api.skills.list).toHaveBeenCalledTimes(3)
-
-    b.api.skills.read.mockResolvedValueOnce({ result: { ok: true, value: { content: 'body' } } })
-    await expect(configInjected.read('demo')).resolves.toBe('body')
-    expect(b.api.skills.read).toHaveBeenCalledWith({ sessionId: 's1', name: 'demo' })
-    b.api.skills.read.mockResolvedValueOnce({ result: { ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } } })
-    await expect(configInjected.read('demo')).rejects.toThrow('skills.read failed: REMOTE_ERROR: unavailable')
 
     b.api.skills.write.mockResolvedValueOnce({ result: { ok: true, value: { name: 'demo' } } })
     await expect(configInjected.write({ name: 'demo', description: 'd', modelInvocable: true, content: 'b' }))
@@ -160,12 +149,6 @@ describe('ui-settings-skills browser plugin', () => {
     b.api.skills.write.mockResolvedValueOnce({ result: { ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } } })
     await expect(configInjected.write({ name: 'demo', description: 'd', modelInvocable: true, content: 'b' }))
       .rejects.toThrow('skills.write failed: REMOTE_ERROR: unavailable')
-
-    b.api.skills.remove.mockResolvedValueOnce({ result: { ok: true, value: { removed: true } } })
-    await expect(configInjected.remove('demo')).resolves.toEqual({ removed: true })
-    expect(b.api.skills.remove).toHaveBeenCalledWith({ sessionId: 's1', name: 'demo' })
-    b.api.skills.remove.mockResolvedValueOnce({ result: { ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } } })
-    await expect(configInjected.remove('demo')).rejects.toThrow('skills.remove failed: REMOTE_ERROR: unavailable')
     await b.ctx.fiber.dispose()
   })
 
@@ -186,13 +169,9 @@ describe('ui-settings-skills browser plugin', () => {
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const configTab = b.slots.entries('settings.skills.tab')[0]!
     const injected = (configTab.inject as unknown as () => SkillsConfigTabInjected)()
-    await expect(injected.read('demo')).rejects.toThrow('skills require an open session')
     await expect(injected.write({ name: 'demo', description: 'd', modelInvocable: true, content: 'b' }))
       .rejects.toThrow('skills require an open session')
-    await expect(injected.remove('demo')).rejects.toThrow('skills require an open session')
-    expect(b.api.skills.read).not.toHaveBeenCalled()
     expect(b.api.skills.write).not.toHaveBeenCalled()
-    expect(b.api.skills.remove).not.toHaveBeenCalled()
     await b.ctx.fiber.dispose()
   })
 

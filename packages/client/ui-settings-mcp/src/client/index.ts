@@ -48,20 +48,12 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-mcp: section dictionaries')
 
   const t = ctx.locale.bind(NS)
+  // The inventory tab reads the live loader instances; the config tab is a
+  // blank configuration form that only writes (upsert) into the patch layer.
   const list = async (): Promise<McpInventorySnapshot> => {
     const result = await ctx.remote.mcpInventory.list()
     if (!result.ok) {
       throw new Error(`mcpInventory.list failed: ${result.error.code}: ${result.error.message}`)
-    }
-    return result.value
-  }
-  // The config tab edits the PATCH configuration items (listConfig); the
-  // inventory tab shows the live loader instances (list). A configured server
-  // only appears in the list once the config HMR has created its fiber.
-  const listConfig = async (): Promise<McpInventorySnapshot> => {
-    const result = await ctx.remote.mcpInventory.listConfig()
-    if (!result.ok) {
-      throw new Error(`mcpInventory.listConfig failed: ${result.error.code}: ${result.error.message}`)
     }
     return result.value
   }
@@ -72,14 +64,7 @@ export function apply(ctx: ClientContext): void {
     }
     return result.value
   }
-  const removeServer = async (serverName: string): Promise<{ removed: boolean }> => {
-    const result = await ctx.remote.mcpInventory.removeServer(serverName)
-    if (!result.ok) {
-      throw new Error(`mcpInventory.removeServer failed: ${result.error.code}: ${result.error.message}`)
-    }
-    return result.value
-  }
-  const configInjected = (): McpConfigTabInjected => ({ listConfig, upsert, removeServer })
+  const configInjected = (): McpConfigTabInjected => ({ upsert })
   const inventoryInjected = (): McpInventoryTabInjected => ({ list })
 
   let tabsVersion = -1

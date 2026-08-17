@@ -33,8 +33,7 @@ import { en, zh, type SkillsSettingsLocaleKey } from './locales.ts'
 
 export type { SkillsSettingsSectionInjected, SkillsSettingsSectionProps } from './SkillsSettingsSection.tsx'
 export type { SkillsListTabInjected, SkillsListTabProps, SkillListResult } from './SkillsListTab.tsx'
-export type { SkillsConfigTabInjected, SkillsConfigTabProps, SkillSourceGroup, SkillWriteInput } from './SkillsConfigTab.tsx'
-export { groupSkills } from './SkillsConfigTab.tsx'
+export type { SkillsConfigTabInjected, SkillsConfigTabProps, SkillWriteInput } from './SkillsConfigTab.tsx'
 export type { SkillsSettingsLocaleKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -76,14 +75,6 @@ export function apply(ctx: ClientContext): void {
     if (sessionId === undefined) throw new Error('skills require an open session')
     return await call(sessionId)
   }
-  const read = (name: string): Promise<string> =>
-    withSession(async (sessionId) => {
-      const response = await api.skills.read({ sessionId, name })
-      if (!response.result.ok) {
-        throw new Error(`skills.read failed: ${response.result.error.code}: ${response.result.error.message}`)
-      }
-      return response.result.value.content
-    })
   const write = (skill: SkillWriteInput): Promise<{ name: string }> =>
     withSession(async (sessionId) => {
       const response = await api.skills.write({ sessionId, skill })
@@ -92,16 +83,8 @@ export function apply(ctx: ClientContext): void {
       }
       return response.result.value
     })
-  const remove = (name: string): Promise<{ removed: boolean }> =>
-    withSession(async (sessionId) => {
-      const response = await api.skills.remove({ sessionId, name })
-      if (!response.result.ok) {
-        throw new Error(`skills.remove failed: ${response.result.error.code}: ${response.result.error.message}`)
-      }
-      return response.result.value
-    })
   const listInjected = (): SkillsListTabInjected => ({ list })
-  const configInjected = (): SkillsConfigTabInjected => ({ list, read, write, remove })
+  const configInjected = (): SkillsConfigTabInjected => ({ write })
 
   let tabsVersion = -1
   let tabsRevision = -1
