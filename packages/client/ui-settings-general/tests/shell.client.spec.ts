@@ -77,9 +77,11 @@ describe('ui-settings apply', () => {
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const { sections } = injectedOf(b.slots).hooks
     // This package registers the General section itself; every other section
-    // arrives from a feature registrant.
+    // arrives from a feature registrant. The shell additionally seats the
+    // personalization section (index.ts).
     const GENERAL = { id: 'general', order: 0, label: 'general.nav' }
-    expect(sections.getSnapshot()).toEqual([GENERAL])
+    const PERSONALIZATION = { id: 'personalization', order: 15, label: 'personalization.nav' }
+    expect(sections.getSnapshot()).toEqual([GENERAL, PERSONALIZATION])
     b.slots.register({ name: 'settings.section', id: 'z', order: 20, label: 'Z' } as never, () => null)
     // No order and no label: both projection defaults apply.
     b.slots.register({ name: 'settings.section', id: 'a' } as never, () => null)
@@ -87,6 +89,7 @@ describe('ui-settings apply', () => {
     expect(rows).toEqual([
       GENERAL,
       { id: 'a', order: 0, label: '' },
+      PERSONALIZATION,
       { id: 'z', order: 20, label: 'Z' },
     ])
     // Snapshot identity is stable until the ledger moves (uSES contract).

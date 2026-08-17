@@ -95,6 +95,7 @@ AmbientBackground.module.css），截图后只改这里。
 | Composer（InputBar .card） | 半径 14px；`linear-gradient(180deg, rgba(11,22,37,.92), rgba(7,15,26,.94))` + 边框 `rgba(180,210,245,.105)` + 阴影 `inset 0 1px 0 rgba(255,255,255,.028), 0 28px 80px rgba(0,0,0,.32)`；模糊 `blur(24px) saturate(114%)` 放在 `.card::before` 层 |
 | Composer focus | 边框 `rgba(103,158,254,.3)` + `0 0 0 1px rgba(86,134,254,.14), 0 0 44px rgba(65,118,230,.075)` |
 | Details（DetailsPanel） | `linear-gradient(180deg, rgba(8,16,28,.82), rgba(6,12,21,.76))`；模糊 `blur(18px)` 放在 `.root::before` 层 |
+| Settings 面板 / Modal（SettingsRoot .panel、Modal .dialog） | `rgba(12,23,38,.96)` + 边框 `rgba(180,210,245,.1)` + 阴影 `0 28px 80px rgba(0,0,0,.42)`（规范 §58；layer-2 白 4% 会让粒子场透进弹窗） |
 | 用户气泡 | 半径 12px；token 底 + 边框 `rgba(176,205,235,.065)` |
 | 工具表面（Terminal/Read/Search/Web/Diff .block） | `inset 0 0 0 1px rgba(176,205,235,.085)` 细边 ring |
 | 中心列（AppFrame .centerCol） | `linear-gradient(180deg, rgba(5,8,14,.08), rgba(5,8,14,.38))` 让粒子若隐若现 |

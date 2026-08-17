@@ -90,6 +90,15 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
+/* Harness 官网风（暗色系）：Modal 表面 ~96% 不透明（规范 §58）——layer-2
+   白 4% 会让粒子场直接透进设置弹窗、白字压在动态背景上。不用 backdrop-filter
+   （96% 不透明下 blur 无意义，且会制造 fixed 包含块，见视觉规格 §5 约束）。 */
+:global(body[data-ds-dark-theme]) .panel {
+  background: rgba(12, 23, 38, 0.96);
+  border: 1px solid rgba(180, 210, 245, 0.1);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+}
+
 /* Nav rail (figma .Setting-nav 501:29958): 188 wide, pad (12,22,12,0),
    gap 18, no own fill — the panel white shows through. */
 .nav {
