@@ -5,16 +5,17 @@
    54px header and the 24px-padded options area. */
 
 /* Trigger row: match the other wide sidebar controls' compact vertical rhythm.
-   In the foot's row layout (SidebarRoot .footArea) the trigger flexes beside
-   the footer actions, so it takes the seat's full width with no bleed margins. */
+   Full-bleed row restored (width +8px / negative margins cancel the foot
+   inset); the skin entry floats at the row's right end, so the label keeps
+   its seat. */
 .trigger {
   flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  width: calc(100% + 8px);
   height: 34px;
-  margin: 0;
+  margin: 4px -4px 4px;
   padding: 6px 2px 6px 10px;
   box-sizing: border-box;
   border: none;

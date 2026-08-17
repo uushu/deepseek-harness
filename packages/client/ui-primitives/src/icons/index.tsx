@@ -742,6 +742,21 @@ export const IconHarnessOutline16 = ({ size = 16, className }: IconProps) => (
   </svg>
 )
 
+/** ic_ds_palette_outline_16（主题/皮肤入口：调色板） */
+export const IconPaletteOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M8 1.7C4.52 1.7 1.7 4.52 1.7 8C1.7 11.48 4.52 14.3 8 14.3C8.65 14.3 9.2 13.75 9.2 13.1C9.2 12.8 9.08 12.53 8.87 12.33C8.66 12.12 8.54 11.85 8.54 11.55C8.54 10.9 9.09 10.35 9.74 10.35H11.2C13.19 10.35 14.3 9.24 14.3 7.25C14.3 4.14 11.48 1.7 8 1.7Z"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinejoin="round"
+    />
+    <circle cx="5.3" cy="6.3" r="1" fill="currentColor" />
+    <circle cx="8" cy="4.8" r="1" fill="currentColor" />
+    <circle cx="10.7" cy="6.3" r="1" fill="currentColor" />
+  </svg>
+)
+
 /** ic_ds_data_outline_16 */
 export const IconDataOutline16 = ({ size = 16, className }: IconProps) => (
   <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

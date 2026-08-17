@@ -9,8 +9,8 @@
 import { useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  IconDarkOutline16, IconFollowsystemOutline16, IconHarnessOutline16, IconLightOutline16,
-  Menu, Tooltip,
+  IconDarkOutline16, IconFollowsystemOutline16, IconHarnessOutline16,
+  IconLightOutline16, IconPaletteOutline16, Menu, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { GlobalStandardProps, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
@@ -88,7 +88,7 @@ export function ThemeEntry({ wide, t, useStore, setTheme }: ThemeEntryComponentP
             aria-label={t('appearance.title')}
             onClick={() => { setOpen(true) }}
           >
-            <IconHarnessOutline16 size={wide ? 16 : 18} />
+            <IconPaletteOutline16 size={wide ? 16 : 18} />
           </button>
         </Tooltip>
       )}
