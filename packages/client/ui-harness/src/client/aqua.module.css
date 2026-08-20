@@ -784,6 +784,14 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* The section tabpanels (MCP / Skills / Plugins) are `panel`-named, so the
+   compat generic glass rule frosts them with a second backdrop blur on top of
+   the already-glass dialog — a frosted rectangle over the content. Neutralize
+   it inside the settings dialog; the dialog itself keeps its one glass layer. */
+[data-dsh-aqua] body [role='dialog'][class*='panel'] [class*='panel'] {
+  backdrop-filter: none;
+}
+
 /* ---------- Sidebar: the selected session gets an accent bar and a soft halo. ---------- */
 [data-dsh-float] [role='treeitem'][aria-selected='true'] {
   box-shadow:
