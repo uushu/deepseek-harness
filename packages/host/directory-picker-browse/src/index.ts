@@ -31,7 +31,7 @@ function ancestryCrumbs(target: string): DirectoryEntry[] {
   for (;;) {
     const parent = dirname(current)
     // basename of a root is '' — label the root crumb by its full path ('/', 'C:\').
-    crumbs.unshift({ name: parent === current ? current : basename(current), path: current, hidden: false })
+    crumbs.unshift({ name: parent === current ? current : basename(current), path: current, hidden: false, kind: 'directory' })
     if (parent === current) return crumbs
     current = parent
   }
@@ -174,7 +174,7 @@ async function directoryRow(
   if (!enterable) return null
   // POSIX hidden convention; Windows' hidden attribute is not exposed by
   // dirents (Known Limitations). The client owns whether hidden rows show.
-  return { name, path, hidden: name.startsWith('.') }
+  return { name, path, hidden: name.startsWith('.'), kind: 'directory' }
 }
 
 /** Validated plugin configuration. */

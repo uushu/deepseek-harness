@@ -13,6 +13,10 @@ export interface DirectoryEntry {
   path: string
   /** Hidden by the host platform's convention (dot-prefixed on POSIX); the client owns whether to show it. */
   hidden: boolean
+  /** Row kind — 'directory' (expandable) or 'file' (leaf). The browse host
+   *  always sends it; rows from older producers may omit it (a missing kind
+   *  reads as a file). */
+  kind?: 'directory' | 'file'
 }
 
 /** host.listDirectory response value: one directory level plus its ancestry. */
