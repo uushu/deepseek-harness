@@ -4,20 +4,16 @@
  * `prefers-color-scheme`, and publishes immutable snapshots; it never touches
  * the DOM — ui-layout's presenter consumes the resolved snapshot. The Host
  * settings scope loads and stores the preference in the user-settings
- * document. The plugin also registers the Appearance preference row into the
- * settings General section — the theme feature owns its own settings surface.
+ * document. The Appearance preference row is now owned by the ui-harness
+ * theme tabs (which register into the General section's item slot).
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: the ctx.settingsScope Context merge. Cross-plugin collaboration
 // goes through the service, never a value import (client bundle purity gate).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { AppearanceRowInjected } from './AppearanceRow.tsx'
-import { AppearanceRow } from './AppearanceRow.tsx'
-import { createAppearanceRowStore } from './settings-store.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
 import {
   DEFAULT_PREFERENCE, isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
@@ -387,28 +383,4 @@ export function apply(ctx: ClientContext): void {
   ctx.provide('theme', theme)
 
   ctx.effect(() => ctx.locale.register(SETTINGS_NS, { zh, en }), 'ui-theme: settings row dictionaries')
-
-  const store = createAppearanceRowStore()
-  let bound: BoundActions<typeof store> | undefined
-  const sync = (snapshot: ThemeSnapshot): void => {
-    bound?.sync(snapshot.preference, snapshot.revision)
-  }
-  ctx.on('theme/change', sync)
-  const injected = (actions: BoundActions<typeof store>): AppearanceRowInjected => {
-    bound = actions
-    // Re-sync from the getter so no event is lost between registration and
-    // first render (the store's revision guard drops stale duplicates).
-    sync(theme.getTheme())
-    return {
-      setTheme: (id) => { theme.setTheme(id) },
-    }
-  }
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'appearance',
-    order: 10,
-    store,
-    locale: SETTINGS_NS,
-    inject: injected,
-  }, AppearanceRow))
 }

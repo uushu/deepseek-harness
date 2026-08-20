@@ -1,0 +1,281 @@
+/* Aqua theme section — tabs + per-theme configuration, using the same row /
+ * knob / segmented language as the Aqua appearance row. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0 16px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+/* Horizontal tabs (mirrors the Plugins section tablist). */
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.tab {
+  position: relative;
+  border: 0;
+  padding: 7px 1px 9px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.tab:hover,
+.tab[data-active='true'] {
+  color: var(--dsw-alias-label-primary);
+}
+
+.tab[data-active='true']::after,
+.tab:focus-visible::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--dsw-alias-label-primary);
+  content: '';
+}
+
+/* Tabpanel content wrapper — named `page` (not `panel`) so the compat-mode
+   `[class*='panel']` glass rule never paints a frosted rectangle over it. */
+.page {
+  min-width: 0;
+}
+
+/* Stock theme's Appearance preference. */
+.appearance {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.appearanceTitle {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* One titled sub-group: title over its control stack. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.subGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subTitle {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Segmented picker: cells in a hairline frame. */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.seg,
+.segActive {
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.seg + .seg,
+.segActive + .seg,
+.seg + .segActive {
+  border-left: 1px solid var(--dsw-alias-border-l2);
+}
+
+.segActive {
+  background: var(--dsw-alias-state-business-tertiary);
+  color: var(--dsw-alias-state-business-primary);
+}
+
+/* Knob: label, slider, number box + unit. */
+.knob {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.knobLabel {
+  flex: none;
+  width: 92px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.numberWrap {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.number {
+  width: 56px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  text-align: right;
+}
+
+.number::-webkit-outer-spin-button,
+.number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.unit {
+  flex: none;
+  width: 18px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Wallpaper picker: ghost buttons + delete. */
+.wallpaperPick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pickButton {
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.pickButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.deleteButton {
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-error);
+  cursor: pointer;
+}
+
+.deleteButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Theme list rows (selectable cards). */
+.themeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.themeRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.themeRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.themeRowActive {
+  border-color: var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-state-business-tertiary);
+}
+
+.themeText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.themeName {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.themeDesc {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.themeCheck {
+  flex: none;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-business-primary);
+}

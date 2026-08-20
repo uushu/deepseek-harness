@@ -884,3 +884,18 @@ export const IconArchiveOutline20 = ({ size = 20, className }: IconProps) => (
     <path d="M12.7962 12.5661V11.0832H7.20548V12.5661L12.7962 12.5661Z" fill="currentColor" />
   </svg>
 )
+
+/** ic_ds_theme_outline_16 — half-moon/sun theme glyph (the common theme
+ *  toggle: ring + solid left half + center divider). */
+export const IconThemeOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M8 0.9C4.07869 0.9 0.9 4.07869 0.9 8C0.9 11.9213 4.07869 15.1 8 15.1C11.9213 15.1 15.1 11.9213 15.1 8C15.1 4.07869 11.9213 0.9 8 0.9ZM8 2.7C5.07298 2.7 2.7 5.07298 2.7 8C2.7 10.927 5.07298 13.3 8 13.3C10.927 13.3 13.3 10.927 13.3 8C13.3 5.07298 10.927 2.7 8 2.7Z"
+      fill="currentColor"
+    />
+    <path d="M8 2.7C5.07298 2.7 2.7 5.07298 2.7 8C2.7 10.927 5.07298 13.3 8 13.3V2.7Z" fill="currentColor" />
+    <path d="M7.45 2.7H8.55V13.3H7.45V2.7Z" fill="currentColor" />
+  </svg>
+)

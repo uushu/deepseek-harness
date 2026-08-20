@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-harness",
-  "description": "Harness skin: a removable glassmorphism theme plugin for the Web surface — deep-sea navy glass (dark) / cool white-blue glass (light), ambient glow + deterministic particle field, master switch and blur/frost knobs. Zero core changes: token overrides ride the theme override stack, CSS is gated on html[data-dsh-harness], off restores the stock UI exactly.",
+  "description": "Aqua: a highly customizable glassmorphism theme for the Web surface — adjustable blur, frost, fluid or wallpaper backdrop, unified corners, and motion",
   "version": "0.1.0-rc.5",
   "publishConfig": {
     "access": "public"
@@ -35,7 +35,9 @@
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-theme",
-        "@deepseek-ai/dsh-client-ui-slots"
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-primitives"
       ],
       "platform": "web"
     }
@@ -46,10 +48,10 @@
     "@deepseek-ai/dsh-client-locale": "workspace:^",
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-sidebar": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-settings-plugins": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
     "@deepseek-ai/dsh-client-ui-theme": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "react": "^18.2.0"
   },
@@ -59,11 +61,12 @@
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-test-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-sidebar": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-settings-plugins": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
     "@deepseek-ai/dsh-client-ui-theme": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@testing-library/react": "^16.1.0",
     "@types/react": "~18.3.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

@@ -15,7 +15,7 @@ import clsx from 'clsx'
 import {
   IconAgentPresetOutline16, IconCloseOutline16, IconDataOutline16,
   IconDocumentOutline16, IconLinkOutline16, IconPersonalizationOutline16, IconSettingsOutline16,
-  IconSkillOutline16, IconTrashOutline16, IconUserOutline16,
+  IconSkillOutline16, IconThemeOutline16, IconTrashOutline16, IconUserOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
 import css from './SettingsRoot.module.css'
@@ -23,6 +23,7 @@ import css from './SettingsRoot.module.css'
 /** Nav glyph by section id; unknown ids fall back to the settings gear. */
 function navIcon(id: string) {
   if (id === 'personalization') return <IconUserOutline16 className={css.navIcon} size={16} />
+  if (id === 'theme') return <IconThemeOutline16 className={css.navIcon} size={16} />
   if (id === 'models') return <IconDataOutline16 className={css.navIcon} size={16} />
   if (id === 'agent-presets') return <IconAgentPresetOutline16 className={css.navIcon} size={16} />
   if (id === 'plugins') return <IconPersonalizationOutline16 className={css.navIcon} size={16} />

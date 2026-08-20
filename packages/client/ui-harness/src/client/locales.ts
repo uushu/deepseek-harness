@@ -1,29 +1,117 @@
-/** `settings.harness` namespace dictionaries (the skin's settings copy). */
+/** `settings.aqua` namespace dictionaries (the settings-row copy). */
+
+/** Dictionary namespace owned by this plugin. */
+export const NS = 'settings.aqua'
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'card.title': 'Harness 玻璃皮肤',
-  'card.description': 'DeepSeek Harness 官网风玻璃皮肤：深海军蓝 / 冷白蓝双色板、氛围光与粒子织物。关闭即完全还原原生 UI。',
-  'knobs.group': 'Harness 皮肤',
-  'knobs.blur': '模糊',
-  'knobs.frost': '玻璃浓度',
-  'on': '开',
-  'off': '关',
+  'section.nav': '主题',
+  'tab.config': '主题配置',
+  'tab.list': '主题列表',
+  'theme.stock.name': 'DSH 原主题',
+  'theme.stock.desc': '原生默认主题，支持浅色 / 深色 / 跟随系统。',
+  'theme.aqua.name': 'Aqua',
+  'theme.aqua.desc': '全局玻璃质感皮肤：云母 / 兼容双模式、流体背景。',
+  'theme.wallpaper.name': 'Wallpaper',
+  'theme.wallpaper.desc': '玻璃皮肤 + 动态图片 / 视频壁纸。',
+  'appearance.title': '外观',
+  'appearance.light': '浅色',
+  'appearance.dark': '深色',
+  'appearance.system': '跟随系统',
+  'aqua.title': '玻璃主题',
+  'aqua.description': '全局玻璃质感，云母/兼容双模式，模糊度、磨砂度、背景与颜色都可自由调节',
+  'aqua.enable': '开启',
+  'aqua.disable': '关闭',
+  'aqua.mode': '模式',
+  'aqua.modeMica': '云母效果',
+  'aqua.modeCompat': '兼容模式',
+  'aqua.materialGroup': '玻璃材质',
+  'aqua.decorAmbient': '环境装饰',
+  'aqua.decorHover': '悬停效果',
+  'aqua.whale': '粒子鲸鱼',
+  'aqua.critters': '小鱼',
+  'aqua.mesh': '网状交互',
+  'aqua.spotlight': '鼠标辉光',
+  'aqua.press': '悬停下压',
+  'aqua.blur': '玻璃模糊度',
+  'aqua.frost': '磨砂度',
+  'aqua.fluidHue': '色调',
+  'aqua.fluidDepth': '颜色深浅',
+  'aqua.bgBrightness': '背景亮度',
+  'aqua.bgBrightnessHintDark': '深色模式：0 压暗至纯黑，50 原样',
+  'aqua.bgBrightnessHintLight': '浅色模式：50 原样，100 提亮至纯白',
+  'aqua.background': '背景',
+  'aqua.backgroundFluid': '流体',
+  'aqua.backgroundWallpaper': '壁纸',
+  'aqua.wallpaper': '壁纸',
+  'aqua.wallpaperHint': '浅色壁纸用浅色模式，深色壁纸用深色模式⚠️',
+  'aqua.chooseImage': '选择图片',
+  'aqua.chooseVideo': '选择视频',
+  'aqua.deleteWallpaper': '删除',
+  'aqua.wallpaperBlur': '壁纸模糊度',
+  'aqua.wallpaperFrost': '壁纸磨砂度',
+  'aqua.videoBlur': '视频模糊度',
+  'aqua.videoBrightness': '视频亮度',
+  'aqua.videoHint': '⚠️视频会自动压暗以保证文字清晰，可用模糊度和亮度调节；刷新后未自动播放时点一下“选择视频”即可恢复',
 } satisfies Record<string, string>
 
-/** The settings.harness namespace key union. */
-export type HarnessKey = keyof typeof zh
+export type AquaLocaleKey = keyof typeof zh
 
-/** English dictionary, checked complete against the zh key set. */
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** The Aqua settings row's copy. */
+    'settings.aqua': AquaLocaleKey
+  }
+}
+
+/** English dictionary. */
 export const en = {
-  'card.title': 'Harness Glass Skin',
-  'card.description': 'DeepSeek Harness site-style glass skin: deep-sea navy / cool white-blue dual palette, ambient glow and a particle fabric. Off restores the stock UI exactly.',
-  'knobs.group': 'Harness skin',
-  'knobs.blur': 'Blur',
-  'knobs.frost': 'Frost',
-  'on': 'On',
-  'off': 'Off',
-} satisfies Record<HarnessKey, string>
-
-/** Dictionary namespace owned by this plugin. */
-export const NS = 'settings.harness'
+  'section.nav': 'Theme',
+  'tab.config': 'Theme configuration',
+  'tab.list': 'Theme list',
+  'theme.stock.name': 'DSH Original',
+  'theme.stock.desc': 'The stock default theme with light / dark / system.',
+  'theme.aqua.name': 'Aqua',
+  'theme.aqua.desc': 'Global glass skin: mica / compatibility modes, fluid backdrop.',
+  'theme.wallpaper.name': 'Wallpaper',
+  'theme.wallpaper.desc': 'Glass skin over a dynamic image / video wallpaper.',
+  'appearance.title': 'Appearance',
+  'appearance.light': 'Light',
+  'appearance.dark': 'Dark',
+  'appearance.system': 'System',
+  'aqua.title': 'Glass theme',
+  'aqua.description': 'Global glassmorphism with mica/compatibility modes — blur, frost, backdrop, and color all adjustable',
+  'aqua.enable': 'On',
+  'aqua.disable': 'Off',
+  'aqua.mode': 'Mode',
+  'aqua.modeMica': 'Mica',
+  'aqua.modeCompat': 'Compatibility',
+  'aqua.materialGroup': 'Glass material',
+  'aqua.decorAmbient': 'Ambient',
+  'aqua.decorHover': 'Hover effects',
+  'aqua.whale': 'Particle whale',
+  'aqua.critters': 'Fish',
+  'aqua.mesh': 'Interactive mesh',
+  'aqua.spotlight': 'Cursor glow',
+  'aqua.press': 'Hover tilt',
+  'aqua.blur': 'Glass blur',
+  'aqua.frost': 'Frost',
+  'aqua.fluidHue': 'Hue',
+  'aqua.fluidDepth': 'Color depth',
+  'aqua.bgBrightness': 'Background brightness',
+  'aqua.bgBrightnessHintDark': 'Dark mode: 0 fades to pure black, 50 is unchanged',
+  'aqua.bgBrightnessHintLight': 'Light mode: 50 is unchanged, 100 brightens to pure white',
+  'aqua.background': 'Backdrop',
+  'aqua.backgroundFluid': 'Fluid',
+  'aqua.backgroundWallpaper': 'Wallpaper',
+  'aqua.wallpaper': 'Wallpaper',
+  'aqua.wallpaperHint': 'Use light mode for light wallpapers, dark mode for dark wallpapers ⚠️',
+  'aqua.chooseImage': 'Choose image',
+  'aqua.chooseVideo': 'Choose video',
+  'aqua.deleteWallpaper': 'Delete',
+  'aqua.wallpaperBlur': 'Wallpaper blur',
+  'aqua.wallpaperFrost': 'Wallpaper frost',
+  'aqua.videoBlur': 'Video blur',
+  'aqua.videoBrightness': 'Video brightness',
+  'aqua.videoHint': '⚠️ The video is dimmed automatically to keep text readable — adjust blur and brightness here; if it does not play after a reload, click "Choose video" once to restore access',
+} satisfies Record<AquaLocaleKey, string>
