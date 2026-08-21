@@ -40,6 +40,10 @@ export const HUE_BASE = 217
  * extreme — pure black in dark mode, the deep saturated shade (e.g. #8B0000
  * for red) in light mode — up to the shipped mid look; the upper half
  * sweeps from mid to pale (#FFCCCB for red). Stepless HSL interpolation.
+ * @param dark - whether to produce the dark-scheme palette.
+ * @param hue - continuous hue slider value from 0 through 360.
+ * @param depth - continuous depth slider value from 0 through 100.
+ * @returns the three CSS color stops for the requested palette.
  */
 export function fluidToneColors(dark: boolean, hue: number, depth: number): FluidToneColors {
   const h = (((hue + HUE_BASE) % 360) + 360) % 360

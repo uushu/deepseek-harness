@@ -2,17 +2,9 @@
 
 English | [中文](harness-site-visual-spec.zh.md)
 
-本规格固化「Harness 官网风」皮肤的最终视觉参数，是视觉验收与后续校准的
-单一对照物。**实现形态：独立插件** `@deepseek-ai/dsh-client-ui-harness`
-（`packages/client/ui-harness`）——token 覆盖走 `ctx.theme.overrideTokens`
-（`{light,dark}` 双色板）、CSS 以 `html[data-dsh-harness]` 门控、设置里有
-总开关（Plugins 卡）与模糊/浓度旋钮（外观区下方）、关闭即完全还原原生 UI。
-**六个核心包（ui-theme/ui-layout/ui-sidebar/ui-conversation/ui-primitives/
-ui-settings-general）已还原为未加皮肤前的原样**——此规格只描述皮肤参数，
-不再涉及核心主题注册。取值优先级固定为：
+本规格固化「Harness 官网风」皮肤的最终视觉参数，是视觉验收与后续校准的单一对照物。**实现形态：独立插件** `@deepseek-ai/dsh-client-ui-harness`（`packages/client/ui-harness`）——token 覆盖走 `ctx.theme.overrideTokens`（`{light,dark}` 双色板）、CSS 以 `html[data-dsh-harness]` 门控、设置里有总开关（Plugins 卡）与模糊/浓度旋钮（外观区下方）、关闭即完全还原原生 UI。**六个核心包（ui-theme/ui-layout/ui-sidebar/ui-conversation/ui-primitives/ui-settings-general）已还原为未加皮肤前的原样**——此规格只描述皮肤参数，不再涉及核心主题注册。取值优先级固定为：
 
-1. DeepSeek Harness 官网实测值（2026-08 抓取 `style.css` 的 `[data-theme=dark]`
-   块与实时页面截图采样）；
+1. DeepSeek Harness 官网实测值（2026-08 抓取 `style.css` 的 `[data-theme=dark]` 块与实时页面截图采样）；
 2. 本规格记录的目标参数；
 3. DSH 既有 `--dsw-*` design tokens（未覆盖项）。
 
@@ -33,8 +25,7 @@ Midnight navy canvas   （深蓝黑画布）
 + low-frequency restrained motion（低频克制动效）
 ```
 
-禁止：紫色 AI 渐变、星空壁纸、神经网络墙纸、大量 20–30px 圆角、
-glow everywhere、每卡阴影、每状态彩色卡、ChatGPT/VS Code 克隆观感。
+禁止：紫色 AI 渐变、星空壁纸、神经网络墙纸、大量 20–30px 圆角、glow everywhere、每卡阴影、每状态彩色卡、ChatGPT/VS Code 克隆观感。
 
 ## 2. 画布与大气层（Ambient Background，ui-layout AmbientBackground）
 
@@ -47,12 +38,9 @@ glow everywhere、每卡阴影、每状态彩色卡、ChatGPT/VS Code 克隆观�
 | vignette | `radial-gradient(ellipse at 67% 20%, transparent 42%, rgba(3,6,11,.26) 78%, rgba(3,6,11,.55) 100%)` |
 | 粒子 canvas | `position:absolute; inset:0; width/height:100%; display:block`（CSS 尺寸与 DPR backing buffer 分离） |
 
-> 环境光层**只属于 harness 主题**：以 `body[data-ds-theme='harness']`（主题身份）
-> 门控挂载，dark/light 下整层不渲染——与 dark 基础色板严格隔离（评审 P0）。
-> 主题切换离开 harness 即卸载，切回时粒子场以同一 seed 重建。
+> 环境光层**只属于 harness 主题**：以 `body[data-ds-theme='harness']`（主题身份）门控挂载，dark/light 下整层不渲染——与 dark 基础色板严格隔离（评审 P0）。主题切换离开 harness 即卸载，切回时粒子场以同一 seed 重建。
 
-校准收口点：`.ambient { --dsh-harness-ambient-opacity }`（AppFrame 的
-AmbientBackground.module.css），截图后只改这里。
+校准收口点：`.ambient { --dsh-harness-ambient-opacity }`（AppFrame 的 AmbientBackground.module.css），截图后只改这里。
 
 ## 3. 粒子场（ParticleField）
 
@@ -99,9 +87,7 @@ AmbientBackground.module.css），截图后只改这里。
 
 ## 5. 表面材质（仅 harness 主题，`body[data-ds-theme='harness']` 作用域）
 
-> 主题身份：ThemePresenter 与 boot-theme 把解析后的主题 id 写入
-> `body[data-ds-theme]`。harness 专属 presentation CSS 一律以此属性作用域，
-> 绝不使用 `body[data-ds-dark-theme]`（dark 基础色板共享该属性，评审 P0）。
+> 主题身份：ThemePresenter 与 boot-theme 把解析后的主题 id 写入 `body[data-ds-theme]`。harness 专属 presentation CSS 一律以此属性作用域，绝不使用 `body[data-ds-dark-theme]`（dark 基础色板共享该属性，评审 P0）。
 
 | 表面 | 规则 |
 |---|---|
@@ -114,18 +100,12 @@ AmbientBackground.module.css），截图后只改这里。
 | 工具表面（Terminal/Read/Search/Web/Diff .block） | `inset 0 0 0 1px rgba(176,205,235,.085)` 细边 ring |
 | 中心列（AppFrame .centerCol） | `linear-gradient(180deg, rgba(5,8,14,.08), rgba(5,8,14,.38))` 让粒子若隐若现 |
 
-> 实现约束：`backdrop-filter` 会让元素成为 `position: fixed` 后代的包含块
-> （设置弹窗 overlay、Tooltip、portaled Menu 的定位基准）。因此模糊一律放在
-> 表面的 `::before` 层（`z-index:-1` + 表面 `isolation: isolate`），表面自身
-> 不携带 filter/transform——这是仓库既有先例（ConversationRoot 避免 transform
-> 包含块）的延伸，已实测设置弹窗恢复视口居中 800×800、composer 菜单正常弹出。
+> 实现约束：`backdrop-filter` 会让元素成为 `position: fixed` 后代的包含块（设置弹窗 overlay、Tooltip、portaled Menu 的定位基准）。因此模糊一律放在表面的 `::before` 层（`z-index:-1` + 表面 `isolation: isolate`），表面自身不携带 filter/transform——这是仓库既有先例（ConversationRoot 避免 transform 包含块）的延伸，已实测设置弹窗恢复视口居中 800×800、composer 菜单正常弹出。
 
 ## 5a. 设置面（ui-harness 插件）
 
-- **Plugins 卡**（`settings.plugin.item`，id `harness`）：总开关——关闭即
-  卸载 token 层/属性/氛围/缝线，原生 UI 原样恢复；开为默认。
-- **外观区下方旋钮**（`settings.general.item`，order 11）：模糊（0–40px）
-  与玻璃浓度（0–100，50 = 出厂）。
+- **Plugins 卡**（`settings.plugin.item`，id `harness`）：总开关——关闭即卸载 token 层/属性/氛围/缝线，原生 UI 原样恢复；开为默认。
+- **外观区下方旋钮**（`settings.general.item`，order 11）：模糊（0–40px）与玻璃浓度（0–100，50 = 出厂）。
 - 皮肤默认开启；localStorage 持久化（`dsh.ui-harness.*`）。
 
 ## 6. 几何
@@ -146,11 +126,8 @@ AmbientBackground.module.css），截图后只改这里。
 
 ## 8. 验收
 
-- 截图矩阵：1920×1080 / 1440×900（精调主态）/ 1280×800 / 1024×768，
-  每尺寸覆盖 Empty / Conversation / Tools / Details / Sidebar-collapsed / Composer-focus；
-- 参考图：`reference-harness-1440x900.png`、`reference-harness-1920x1080.png`
-  （Chromium dark，1440×900/1920×1080）；
-- 量化对比：画布区 luminance 差 ≤6%（实测 12 vs 12 ✓）；光晕峰值差 ≤10%
-  （工作台光晕按「可感知但克制」校准，明显弱于 hero 流体 shader，属有意为之）；
+- 截图矩阵：1920×1080 / 1440×900（精调主态）/ 1280×800 / 1024×768，每尺寸覆盖 Empty / Conversation / Tools / Details / Sidebar-collapsed / Composer-focus；
+- 参考图：`reference-harness-1440x900.png`、`reference-harness-1920x1080.png`（Chromium dark，1440×900/1920×1080）；
+- 量化对比：画布区 luminance 差 ≤6%（实测 12 vs 12 ✓）；光晕峰值差 ≤10%（工作台光晕按「可感知但克制」校准，明显弱于 hero 流体 shader，属有意为之）；
 - token 色差：每通道 ≤8 / Delta-E <5；
 - 截图走 `?visual-test=1` 冻结粒子，保证确定性。

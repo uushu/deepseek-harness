@@ -55,6 +55,7 @@ export const zh = {
   'aqua.videoHint': '⚠️视频会自动压暗以保证文字清晰，可用模糊度和亮度调节；刷新后未自动播放时点一下“选择视频”即可恢复',
 } satisfies Record<string, string>
 
+/** Locale key accepted by the Aqua settings namespace. */
 export type AquaLocaleKey = keyof typeof zh
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {

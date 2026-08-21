@@ -59,9 +59,13 @@ interface SessionEventMap {
    * Assembled assistant message for one step (derived history uses this).
    * Carries the step's `usage` when the adapter reported token accounting, so
    * the model output and its accounting travel together (there is no separate
-   * usage record). `usage` is absent when the adapter reported none.
+   * usage record). `usage` is absent when the adapter reported none. A turn
+   * cancelled mid-stream finalizes its delivered text/reasoning prefix as this
+   * event with `interrupted: true`; undispatched tool calls are absent. The
+   * marker distinguishes that prefix without re-deriving interruption from turn
+   * boundaries. An aborted turn with no such event streamed no visible content.
    */
-  'assistant/message': { turn: number; step: number; message: AssistantMessage; usage?: TokenUsage }
+  'assistant/message': { turn: number; step: number; message: AssistantMessage; usage?: TokenUsage; interrupted?: true }
   /**
    * The model requested one tool invocation: `name` with the raw `arguments`
    * JSON string exactly as the model produced it (unparsed). `callId` pairs the
@@ -746,7 +750,7 @@ fork(source: SessionForkSource, boundary?: number, childSessionId?: SessionId): 
 
 Types: [CreateSessionOptions](persistence.md) · [PrepareSessionOptions](persistence.md) · [SessionId](core.md)
 
-Source: [`packages/core/session/src/index.ts:792`](../../packages/core/session/src/index.ts)
+Source: [`packages/core/session/src/index.ts:821`](../../packages/core/session/src/index.ts)
 
 <a id="session-events"></a>
 
@@ -776,6 +780,29 @@ Creation announcement during session publication. A synchronous throw vetoes and
 Types: [Scoped](scope.md)
 
 Source: [`packages/core/session/src/index.ts:54`](../../packages/core/session/src/index.ts)
+
+<a id="sessiondeleted--emit"></a>
+
+#### `session/deleted` — emit
+
+Host-level notice that a session was explicitly deleted via `session.delete`: the durable log is gone, project files stay untouched, and every surface must drop the row. Unlike `session/disposed` this fires for COLD sessions too (a delete never disposes a live Session object it does not hold). Emitted with the bare session id.
+
+```ts cordis-catalog
+/**
+ * Host-level notice that a session was explicitly deleted via
+ * `session.delete`: the durable log is gone, project files stay untouched,
+ * and every surface must drop the row. Unlike `session/disposed`
+ * this fires for COLD sessions too (a delete never disposes a live
+ * Session object it does not hold). Emitted with the bare session id.
+ * @param sessionId - deleted session id.
+ * @mode emit
+ */
+'session/deleted'(sessionId: SessionId): void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/core/session/src/index.ts:74`](../../packages/core/session/src/index.ts)
 
 <a id="sessiondisposed--emit"></a>
 
@@ -823,7 +850,7 @@ Post-commit, fire-and-forget append feed. The listener snapshot resolves before 
 
 Types: [Scoped](scope.md)
 
-Source: [`packages/core/session/src/index.ts:76`](../../packages/core/session/src/index.ts)
+Source: [`packages/core/session/src/index.ts:105`](../../packages/core/session/src/index.ts)
 
 <a id="sessionflush--parallel"></a>
 
@@ -845,5 +872,28 @@ Awaited parallel durability checkpoint: every listener runs and the caller await
 
 Types: [Scoped](scope.md)
 
-Source: [`packages/core/session/src/index.ts:85`](../../packages/core/session/src/index.ts)
+Source: [`packages/core/session/src/index.ts:114`](../../packages/core/session/src/index.ts)
+
+<a id="sessionrestored--emit"></a>
+
+#### `session/restored` — emit
+
+Host-level notice that a trashed session was restored via `session.restore`: the durable log is back on every surface and the row must reappear. The payload is the restore impl's precomputed list projection (same fields a session-added frame carries). Emitted with the bare payload; a restore never disposes or creates a Session object.
+
+```ts cordis-catalog
+/**
+ * Host-level notice that a trashed session was restored via
+ * `session.restore`: the durable log is back on every surface and the
+ * row must reappear. The payload is the restore impl's precomputed list
+ * projection (same fields a session-added frame carries). Emitted with
+ * the bare payload; a restore never disposes or creates a Session object.
+ * @param restored - restored session's list projection.
+ * @mode emit
+ */
+'session/restored'(restored: { sessionId: SessionId blank: boolean parentSessionId?: SessionId origin?: 'subagent' cwd?: string agentPreset?: string /** The last durable title, when the log carried one (clients fall back to cwd/id). */ title?: string }): void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/core/session/src/index.ts:84`](../../packages/core/session/src/index.ts)
 <!-- END GENERATED cordis-surface -->

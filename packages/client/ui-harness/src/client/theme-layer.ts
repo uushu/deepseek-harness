@@ -557,17 +557,26 @@ export class AquaLayer {
     this.sync()
   }
 
-  /** Current enable state (the settings row mirrors this). */
+  /**
+   * Read the current enable state.
+   * @returns whether the Aqua layer is enabled.
+   */
   getEnabled(): boolean {
     return this.enabled
   }
 
-  /** Current knob values (the settings row mirrors these). */
+  /**
+   * Read the current knob values.
+   * @returns a copy of the Aqua settings.
+   */
   getSettings(): AquaSettings {
     return { ...this.settings }
   }
 
-  /** Whether the resolved palette is dark (the brightness knob darkens). */
+  /**
+   * Read the resolved palette mode.
+   * @returns whether the active palette is dark.
+   */
   getDark(): boolean {
     return this.dark
   }
@@ -612,7 +621,10 @@ export class AquaLayer {
     }
   }
 
-  /** Flip the layer: persist, then apply or retract every owned effect. */
+  /**
+   * Persist and apply or retract every owned effect.
+   * @param value - next enable state.
+   */
   setEnabled(value: boolean): void {
     if (value === this.enabled) return
     this.enabled = value
@@ -620,7 +632,10 @@ export class AquaLayer {
     this.sync()
   }
 
-  /** Set the rendering mode ('mica' or 'compat'). */
+  /**
+   * Set the rendering mode.
+   * @param value - `mica` or `compat`.
+   */
   setMode(value: 'mica' | 'compat'): void {
     if (value === this.settings.mode) return
     this.settings.mode = value
@@ -628,7 +643,10 @@ export class AquaLayer {
     if (this.enabled) { this.applySettings(); this.applyTokens() }
   }
 
-  /** Set the glass blur radius (px). */
+  /**
+   * Set the glass blur radius.
+   * @param value - blur radius in pixels.
+   */
   setBlur(value: number): void {
     const next = clampSetting('blur', value)
     if (next === this.settings.blur) return
@@ -637,7 +655,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the glass frost amount (0-100). */
+  /**
+   * Set the glass frost amount.
+   * @param value - frost amount from 0 through 100.
+   */
   setFrost(value: number): void {
     const next = clampSetting('frost', value)
     if (next === this.settings.frost) return
@@ -646,7 +667,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the fluid hue (degrees, continuous). */
+  /**
+   * Set the continuous fluid hue.
+   * @param value - hue in degrees.
+   */
   setFluidHue(value: number): void {
     const next = clampSetting('fluidHue', value)
     if (next === this.settings.fluidHue) return
@@ -658,7 +682,10 @@ export class AquaLayer {
     }
   }
 
-  /** Set the fluid depth (0-100, continuous: deep ↔ pale). */
+  /**
+   * Set the continuous fluid depth.
+   * @param value - depth from 0 through 100.
+   */
   setFluidDepth(value: number): void {
     const next = clampSetting('fluidDepth', value)
     if (next === this.settings.fluidDepth) return
@@ -667,7 +694,10 @@ export class AquaLayer {
     if (this.enabled) this.applyFluidPalettes()
   }
 
-  /** Set the background brightness (0-100: 0 = pure black, 50 = transparent, 100 = pure white). */
+  /**
+   * Set the background brightness.
+   * @param value - brightness from 0 through 100.
+   */
   setBgBrightness(value: number): void {
     const next = clampSetting('bgBrightness', value)
     if (next === this.settings.bgBrightness) return
@@ -676,7 +706,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the backdrop source (fluid board or custom wallpaper). */
+  /**
+   * Set the backdrop source.
+   * @param value - fluid board or custom wallpaper.
+   */
   setBackground(value: 'fluid' | 'wallpaper'): void {
     if (value === this.settings.background) return
     this.settings.background = value
@@ -684,8 +717,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the wallpaper image (a data URL; empty clears it) or a large video
-   *  (`idb:<id>` marker whose blob lives in IndexedDB). */
+  /**
+   * Set the wallpaper image or large-video marker.
+   * @param value - data URL, empty string, or an `idb:<id>` marker.
+   */
   setWallpaper(value: string): void {
     const previous = this.settings.wallpaper
     this.settings.wallpaper = value
@@ -701,7 +736,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the particle-whale flag (chat-area center decoration). */
+  /**
+   * Set the particle-whale decoration flag.
+   * @param value - next decoration state.
+   */
   setWhale(value: boolean): void {
     if (value === this.settings.whale) return
     this.settings.whale = value
@@ -709,7 +747,10 @@ export class AquaLayer {
     if (this.enabled) this.syncWhale()
   }
 
-  /** Set the ambient marine-life flag (fish / bubbles / plankton). */
+  /**
+   * Set the ambient marine-life flag.
+   * @param value - next decoration state.
+   */
   setCritters(value: boolean): void {
     if (value === this.settings.critters) return
     this.settings.critters = value
@@ -717,7 +758,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the interactive-mesh flag (dot-grid decoration). */
+  /**
+   * Set the interactive-mesh flag.
+   * @param value - next decoration state.
+   */
   setMesh(value: boolean): void {
     if (value === this.settings.mesh) return
     this.settings.mesh = value
@@ -725,7 +769,10 @@ export class AquaLayer {
     if (this.enabled) this.syncMesh()
   }
 
-  /** Set the cursor-spotlight flag (pointer-tracking glass glow). */
+  /**
+   * Set the cursor-spotlight flag.
+   * @param value - next spotlight state.
+   */
   setSpotlight(value: boolean): void {
     if (value === this.settings.spotlight) return
     this.settings.spotlight = value
@@ -733,7 +780,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the hover-press flag (pane sinks a touch under the cursor). */
+  /**
+   * Set the hover-press flag.
+   * @param value - next press-effect state.
+   */
   setPress(value: boolean): void {
     if (value === this.settings.press) return
     this.settings.press = value
@@ -741,7 +791,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the wallpaper blur radius (px). */
+  /**
+   * Set the wallpaper blur radius.
+   * @param value - blur radius in pixels.
+   */
   setWallpaperBlur(value: number): void {
     const next = clampSetting('wallpaperBlur', value)
     if (next === this.settings.wallpaperBlur) return
@@ -750,7 +803,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the wallpaper frost veil (0-100). */
+  /**
+   * Set the wallpaper frost veil.
+   * @param value - frost amount from 0 through 100.
+   */
   setWallpaperFrost(value: number): void {
     const next = clampSetting('wallpaperFrost', value)
     if (next === this.settings.wallpaperFrost) return
@@ -759,7 +815,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the video wallpaper blur radius (px). */
+  /**
+   * Set the video wallpaper blur radius.
+   * @param value - blur radius in pixels.
+   */
   setVideoBlur(value: number): void {
     const next = clampSetting('videoBlur', value)
     if (next === this.settings.videoBlur) return
@@ -768,7 +827,10 @@ export class AquaLayer {
     if (this.enabled) this.applySettings()
   }
 
-  /** Set the video wallpaper brightness (0-100, 100 = fully lit). */
+  /**
+   * Set the video wallpaper brightness.
+   * @param value - brightness from 0 through 100.
+   */
   setVideoBrightness(value: number): void {
     const next = clampSetting('videoBrightness', value)
     if (next === this.settings.videoBrightness) return

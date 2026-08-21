@@ -39,8 +39,11 @@ function tx(db: IDBDatabase, mode: IDBTransactionMode): IDBObjectStore {
   return db.transaction(STORE, mode).objectStore(STORE)
 }
 
-/** Store a blob and return its `idb:<id>` marker ('' on failure → caller
- *  falls back to the data-URL path). */
+/**
+ * Store a video blob in IndexedDB.
+ * @param blob - video payload to persist.
+ * @returns its `idb:<id>` marker, or an empty string on failure.
+ */
 export async function saveVideoBlob(blob: Blob): Promise<string> {
   try {
     const db = await openDb()
@@ -57,7 +60,11 @@ export async function saveVideoBlob(blob: Blob): Promise<string> {
   }
 }
 
-/** Load a stored blob by id (null when absent). */
+/**
+ * Load a stored video blob.
+ * @param id - IndexedDB blob key without the `idb:` prefix.
+ * @returns the blob, or `null` when absent or unreadable.
+ */
 export async function loadVideoBlob(id: string): Promise<Blob | null> {
   try {
     const db = await openDb()
@@ -73,7 +80,10 @@ export async function loadVideoBlob(id: string): Promise<Blob | null> {
   }
 }
 
-/** Drop a stored blob (ignores failures). */
+/**
+ * Drop a stored video blob, ignoring storage failures.
+ * @param id - IndexedDB blob key without the `idb:` prefix.
+ */
 export async function deleteVideoBlob(id: string): Promise<void> {
   try {
     const db = await openDb()
@@ -88,8 +98,11 @@ export async function deleteVideoBlob(id: string): Promise<void> {
   }
 }
 
-/** Persist a File System Access handle so the next visit can re-read the
- *  ORIGINAL file without the user picking it again. */
+/**
+ * Persist a File System Access handle for a later visit.
+ * @param handle - authorized file handle to remember.
+ * @returns whether IndexedDB accepted the handle.
+ */
 export async function saveVideoHandle(handle: FileSystemFileHandle): Promise<boolean> {
   try {
     const db = await openDb()
@@ -105,7 +118,10 @@ export async function saveVideoHandle(handle: FileSystemFileHandle): Promise<boo
   }
 }
 
-/** Load the remembered file handle (null when absent or storage fails). */
+/**
+ * Load the remembered file handle.
+ * @returns the handle, or `null` when absent or unreadable.
+ */
 export async function loadVideoHandle(): Promise<FileSystemFileHandle | null> {
   try {
     const db = await openDb()

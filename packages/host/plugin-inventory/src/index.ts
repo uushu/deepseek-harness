@@ -19,7 +19,11 @@ function pluginEntryId(value: string): PluginEntryId {
   return value as PluginEntryId
 }
 
-/** Whether one Loader entry is an mcp-client instance — owned by the MCP settings section, not the plugin list. */
+/**
+ * Test whether a Loader entry is owned by the MCP settings section.
+ * @param moduleName - Loader module name to classify.
+ * @returns whether the entry is an MCP client instance.
+ */
 export function isMcpClientName(moduleName: string): boolean {
   const normalized = moduleName.startsWith('cordis:') ? moduleName.slice(7) : moduleName
   if (normalized === '@deepseek-ai/dsh-mcp-client') return true

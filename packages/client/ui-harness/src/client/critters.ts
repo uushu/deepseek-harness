@@ -85,7 +85,10 @@ export const AMBIENT_SCENE = [
   plankton('top:56%;left:86%;animation-delay:-4s'),
 ].join('')
 
-/** Build the ambient container element (or reuse an existing one). */
+/**
+ * Build the ambient container element or reuse the mounted element.
+ * @returns the mounted ambient container.
+ */
 export function ensureAmbientScene(): HTMLElement {
   const existing = document.querySelector<HTMLElement>('[data-dsh-aqua-ambient]')
   if (existing !== null) return existing

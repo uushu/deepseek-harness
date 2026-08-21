@@ -64,10 +64,11 @@ declare module '@deepseek-ai/cordis' {
     'session/disposed'(this: Scoped<Session>, session: Session): void
     /**
      * Host-level notice that a session was explicitly deleted via
-     * `session.delete`: the durable log is gone, file changes were rolled
-     * back, and every surface must drop the row. Unlike `session/disposed`
+     * `session.delete`: the durable log is gone, project files stay untouched,
+     * and every surface must drop the row. Unlike `session/disposed`
      * this fires for COLD sessions too (a delete never disposes a live
      * Session object it does not hold). Emitted with the bare session id.
+     * @param sessionId - deleted session id.
      * @mode emit
      */
     'session/deleted'(sessionId: SessionId): void
@@ -77,6 +78,7 @@ declare module '@deepseek-ai/cordis' {
      * row must reappear. The payload is the restore impl's precomputed list
      * projection (same fields a session-added frame carries). Emitted with
      * the bare payload; a restore never disposes or creates a Session object.
+     * @param restored - restored session's list projection.
      * @mode emit
      */
     'session/restored'(restored: {

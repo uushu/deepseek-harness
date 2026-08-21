@@ -30,7 +30,11 @@ const HOME_PATCH_HEADER = `# dsh home-level user patch layer — merged over eve
 /** Module specifier of the MCP client bridge plugin (matches the gateway's predicate). */
 const MCP_CLIENT_MODULE = '@deepseek-ai/dsh-mcp-client'
 
-/** Whether one patch-row module name is an mcp-client instance (`cordis:` builtin form included). */
+/**
+ * Test whether a patch-row module name is an MCP client instance.
+ * @param name - candidate module name, including the optional `cordis:` form.
+ * @returns whether the name resolves to the MCP client bridge.
+ */
 export function isMcpClientName(name: unknown): boolean {
   if (typeof name !== 'string') return false
   const normalized = name.startsWith('cordis:') ? name.slice(7) : name
@@ -44,7 +48,10 @@ export interface PatchEntry {
   readonly config?: unknown
 }
 
-/** Absolute path of the home-level user patch layer. */
+/**
+ * Resolve the home-level user patch layer.
+ * @returns its absolute path.
+ */
 export function homePatchPath(): string {
   return join(resolveDshHome(), HOME_PATCH_FILENAME)
 }
@@ -85,7 +92,10 @@ function rowEntries(row: unknown): PatchEntry[] {
   return out
 }
 
-/** Read the home patch entries; a missing or empty file yields an empty list. */
+/**
+ * Read the home patch entries.
+ * @returns flattened entries, or an empty list for a missing or empty file.
+ */
 export function readHomePatchEntries(): PatchEntry[] {
   return readPatchRows().flatMap(rowEntries)
 }
@@ -121,7 +131,10 @@ function splitMcpRows(rows: unknown[]): { foreign: unknown[]; mcp: PatchEntry[] 
   return { foreign, mcp }
 }
 
-/** Persist the given MCP entries to the home patch layer (atomic replace). */
+/**
+ * Persist MCP entries to the home patch layer with an atomic replace.
+ * @param entries - complete MCP entry set to retain.
+ */
 export function writeHomePatchEntries(entries: readonly PatchEntry[]): void {
   const path = homePatchPath()
   const { foreign } = splitMcpRows(readPatchRows())

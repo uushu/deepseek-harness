@@ -35,8 +35,9 @@ interface Workspace {
 
   /**
    * Canonical directory path: the `fs.realpath` of the path given at create
-   * time (trailing slashes, `..`, and symlinks all resolved). Never rewritten
-   * afterwards, even when the directory disappears (see {@link status}).
+   * time (trailing slashes, `..`, and symlinks all resolved). Rewritten only
+   * by {@link retargetPath} when the directory itself is renamed; a directory
+   * that merely disappears keeps its record (see {@link status}).
    */
   readonly path: string
 
@@ -65,6 +66,17 @@ interface Workspace {
    * @returns resolution after durability.
    */
   setTitle(title: string): Promise<void>
+
+  /**
+   * Retarget the workspace's canonical directory durably — its folder was
+   * renamed on disk. The registry retargets the canonical-cwd index first so
+   * membership survives the move; callers own the physical directory rename
+   * and the persisted session-header updates that keep the index consistent
+   * across a restart.
+   * @param newPath - the workspace directory's new canonical path.
+   * @returns resolution after durability.
+   */
+  retargetPath(newPath: string): Promise<void>
 
   /**
    * Prepend a session to this workspace's candidate account. An already
@@ -147,7 +159,7 @@ Abstract directory-picking service. Subclass, implement `capability()`, and load
 abstract capability(): DirectoryPickerCapability
 ```
 
-Source: [`packages/host/directory-picker/src/index.ts:131`](../../packages/host/directory-picker/src/index.ts)
+Source: [`packages/host/directory-picker/src/index.ts:134`](../../packages/host/directory-picker/src/index.ts)
 
 <a id="ctxworkspaceregistry--workspaceregistry"></a>
 
@@ -195,6 +207,18 @@ list(): Workspace[]
 delete(id: WorkspaceId): Promise<boolean>
 
 /**
+ * Retarget a workspace's canonical directory durably — its folder was
+ * renamed on disk. The canonical-cwd header index is retargeted BEFORE the
+ * record write so the entity's membership filter keeps every attached
+ * session; callers own the physical directory rename and the persisted
+ * session-header updates that keep the index consistent across a restart.
+ * @param id - Workspace whose directory moved.
+ * @param newPath - the directory's new canonical path.
+ * @returns resolution after durability.
+ */
+retarget(id: WorkspaceId, newPath: string): Promise<void>
+
+/**
  * Move one workspace within the durable display order, DOM-insertBefore-like.
  * With an anchor it lands before that workspace; without one it appends.
  * @param id - Workspace to move.
@@ -211,6 +235,16 @@ insertBefore(id: WorkspaceId, beforeId?: WorkspaceId): Promise<readonly Workspac
  * @returns resolution after durability.
  */
 archiveSession(sessionId: SessionId): Promise<void>
+
+/**
+ * Unarchive one session durably: it returns to every grouping surface at
+ * its original workspace accounting slot. No session-existence check — the
+ * archive set is the authority. An id outside the set resolves without
+ * writing.
+ * @param sessionId - The session to unarchive.
+ * @returns resolution after durability.
+ */
+unarchiveSession(sessionId: SessionId): Promise<void>
 
 /**
  * Resolve by canonical directory path without creating or mutating a
