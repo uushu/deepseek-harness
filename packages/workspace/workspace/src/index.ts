@@ -200,6 +200,37 @@ export class WorkspaceRegistry extends Service {
   }
 
   /**
+   * Retarget a workspace's canonical directory durably — its folder was
+   * renamed on disk. The canonical-cwd header index is retargeted BEFORE the
+   * record write so the entity's membership filter keeps every attached
+   * session; callers own the physical directory rename and the persisted
+   * session-header updates that keep the index consistent across a restart.
+   * @param id - Workspace whose directory moved.
+   * @param newPath - the directory's new canonical path.
+   * @returns resolution after durability.
+   */
+  retarget(id: WorkspaceId, newPath: string): Promise<void> {
+    return this.enqueueOperation(async () => {
+      const entity = this.entities.get(id)
+      if (entity === undefined) throw new Error(`cannot retarget unknown workspace '${id}'`)
+      const oldPath = entity.path
+      if (oldPath === newPath) return
+      for (const [sessionId, path] of this.sessionPaths) {
+        if (path !== oldPath) continue
+        this.sessionPaths.set(sessionId, newPath)
+        this.invalidSessionPaths.delete(sessionId)
+      }
+      // The cached headers carry the same canonical cwd; refresh the copies
+      // so attach-time validation against the new path succeeds in this run.
+      for (const [sessionId, header] of this.headers) {
+        if (header.cwd !== oldPath) continue
+        this.headers.set(sessionId, { ...header, cwd: newPath })
+      }
+      await entity.retargetPath(newPath)
+    })
+  }
+
+  /**
    * Move one workspace within the durable display order, DOM-insertBefore-like.
    * With an anchor it lands before that workspace; without one it appends.
    * @param id - Workspace to move.
