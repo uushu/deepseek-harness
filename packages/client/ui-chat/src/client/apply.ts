@@ -1,6 +1,8 @@
 /** Register the Chat Conversation target, renderers, stats, and details surface. */
+import { createElement, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { LlmProviderBalance } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { BoundActions, ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
@@ -23,7 +25,7 @@ import { EMPTY_CHAT_SNAPSHOT } from './contract/snapshot.ts'
 import { ApprovalCommand } from './chat/ApprovalCommand.tsx'
 import { ChatView } from './chat/ChatView.tsx'
 import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
-import { StatsLine } from './chat/StatsLine.tsx'
+import { StatsLine, type StatsLineProps } from './chat/StatsLine.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { DetailsPanel } from './details/DetailsPanel.tsx'
 import { en, NS, zh } from './locale.ts'
@@ -44,7 +46,7 @@ const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
 /** Services required by the Chat target and its presentation registrations. */
 export const inject = [
   'slots', 'sessions', 'uiSession', 'uiConversation', 'layout', 'locale',
-  'settingsScope', 'remote', 'remote.session',
+  'settingsScope', 'remote', 'remote.llm', 'remote.session',
 ]
 
 /**
@@ -152,10 +154,45 @@ export function apply(ctx: Context): void {
     return disposeView
   })
 
+  let balance: LlmProviderBalance | null | undefined
+  let balanceRequested = false
+  const balanceListeners = new Set<() => void>()
+  const balanceSource: ObservableSnapshot<LlmProviderBalance | null | undefined> = {
+    getSnapshot: () => balance,
+    subscribe: (listener) => {
+      balanceListeners.add(listener)
+      if (!balanceRequested) {
+        balanceRequested = true
+        void (async () => {
+          try {
+            const result = await ctx.remote.llm.balance()
+            balance = result.ok ? result.value : null
+          } catch (_balanceUnavailable) {
+            // Balance is advisory data; an unavailable provider must not break the composer.
+            balance = null
+          }
+          for (const notify of balanceListeners) notify()
+        })()
+      }
+      return () => { balanceListeners.delete(listener) }
+    },
+  }
+  const StatsLineWithBalance = (props: StatsLineProps) => {
+    const currentBalance = useSyncExternalStore(
+      balanceSource.subscribe,
+      balanceSource.getSnapshot,
+      balanceSource.getSnapshot,
+    )
+    return createElement(StatsLine, {
+      ...props,
+      ...(currentBalance === undefined ? {} : { balance: currentBalance }),
+    })
+  }
+
   ctx.slots.inject('conversation.composer.dock', () =>
     ctx.slots.register({
       name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS,
-    }, StatsLine))
+    }, StatsLineWithBalance))
 
   ctx.slots.inject('conversation.approval.detail', () =>
     ctx.slots.register({ name: 'conversation.approval.detail' }, ApprovalCommand))

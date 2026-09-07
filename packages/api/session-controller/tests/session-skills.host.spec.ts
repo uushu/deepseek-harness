@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -57,11 +60,15 @@ describe('SessionSkillCatalog', () => {
         name: 'review',
         description: 'Review the current change.',
         whenToUse: 'Before publishing.',
+        provider: 'filesystem',
+        source: 'project-dsh',
         invocation: { modelInvocable: true, userInvocable: true },
       },
       {
         name: 'model-only',
         description: 'Not shown to the user.',
+        provider: 'bundled',
+        source: 'bundled',
         invocation: { modelInvocable: true, userInvocable: false },
       },
     ]))
@@ -74,15 +81,74 @@ describe('SessionSkillCatalog', () => {
         description: 'Review the current change.',
         whenToUse: 'Before publishing.',
         modelInvocable: true,
+        provider: 'filesystem',
+        source: 'project-dsh',
       }],
     })
+    await expect(catalog.list({ sessionId, includeInternal: true }, new AbortController().signal)).resolves.toEqual({
+      skills: [
+        {
+          name: 'review',
+          description: 'Review the current change.',
+          whenToUse: 'Before publishing.',
+          modelInvocable: true,
+          provider: 'filesystem',
+          source: 'project-dsh',
+        },
+        {
+          name: 'model-only',
+          description: 'Not shown to the user.',
+          modelInvocable: true,
+          provider: 'bundled',
+          source: 'bundled',
+        },
+      ],
+    })
     expect(observeSession).toHaveBeenCalledWith(sessionId)
-    expect(dispose).toHaveBeenCalledOnce()
+    expect(dispose).toHaveBeenCalledTimes(2)
     expect(resume).not.toHaveBeenCalled()
     expect(ctx.agents.list()).toEqual([])
     expect(list).toHaveBeenCalledWith({ cwd: '/cold/project', scope: undefined })
   })
 
+  it('creates project Skills with validated atomic replacements', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'dsh-session-skills-'))
+    try {
+      const ctx = await context()
+      const sessionId = SessionId('project-skill-write')
+      ctx.provide('sessionQuery', {
+        observeSession: () => Promise.resolve(observation(sessionId, { cwd })),
+      } as never)
+      const catalog = new SessionSkillCatalog(ctx)
+      const skill = {
+        name: 'local-skill',
+        description: 'A local Skill.',
+        whenToUse: 'Use this locally.',
+        modelInvocable: false,
+        content: 'First body.',
+      }
+
+      await expect(catalog.write({ sessionId, skill })).resolves.toEqual({ name: 'local-skill' })
+      const file = join(cwd, '.dsh', 'skills', 'local-skill', 'SKILL.md')
+      const initial = await readFile(file, 'utf8')
+      expect(initial).toContain('name: local-skill')
+      expect(initial).toContain('description: A local Skill.')
+      expect(initial).toContain('whenToUse: Use this locally.')
+      expect(initial).toContain('disable-model-invocation: true')
+      expect(initial).toContain('First body.')
+
+      await catalog.write({ sessionId, skill: { ...skill, content: 'Updated body.' } })
+      const updated = await readFile(file, 'utf8')
+      expect(updated).toContain('Updated body.')
+      expect(updated).not.toContain('First body.')
+      await expect(catalog.write({
+        sessionId,
+        skill: { ...skill, name: 'Bad Name' },
+      })).rejects.toMatchObject({ code: 'gateway/bad-request' })
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
+  })
   it('uses a live Agent to address a preset-owned registry', async () => {
     const ctx = await context()
     const sessionId = SessionId('live-skills')
@@ -95,6 +161,8 @@ describe('SessionSkillCatalog', () => {
     const scopedList = vi.fn(() => Promise.resolve([{
       name: 'preset-owned',
       description: 'Composed for this Agent.',
+      provider: 'preset',
+      source: 'custom',
       invocation: { modelInvocable: false, userInvocable: true },
     }]))
     const standingKeyFor = vi.fn()
@@ -109,6 +177,8 @@ describe('SessionSkillCatalog', () => {
         name: 'preset-owned',
         description: 'Composed for this Agent.',
         modelInvocable: false,
+        provider: 'preset',
+        source: 'custom',
       }],
     })
     expect(scopedList).toHaveBeenCalledWith({ cwd: '/live/project', scope: agent })

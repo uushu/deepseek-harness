@@ -14,6 +14,10 @@ interface ModalBaseProps {
   footer?: ReactNode
   className?: string
   contentClassName?: string
+  /** Optional class for danger-dialog titles. */
+  titleClassName?: string
+  /** Optional class for danger-dialog descriptions. */
+  descriptionClassName?: string
 }
 
 type ModalProps = ModalBaseProps & (
@@ -31,12 +35,25 @@ type ModalProps = ModalBaseProps & (
  * @param props.children - body (inputs, etc.).
  * @param props.footer - action row (Cancel / Create).
  * @param props.contentClassName - optional class for a scrollable content region.
+ * @param props.titleClassName - optional class for a danger-dialog title.
+ * @param props.descriptionClassName - optional class for a danger-dialog description.
  * @param props.headless - render children directly in the card (no default
  * header/close/body chrome); mask, card, Escape, and aria-label remain.
  * @returns null when closed; otherwise the overlay tree.
  */
 export function Modal({
-  open, onClose, title, closeLabel, description, children, footer, className, contentClassName, headless = false,
+  open,
+  onClose,
+  title,
+  closeLabel,
+  description,
+  children,
+  footer,
+  className,
+  contentClassName,
+  titleClassName,
+  descriptionClassName,
+  headless = false,
 }: ModalProps) {
   useEffect(() => {
     if (!open) return
@@ -64,13 +81,13 @@ export function Modal({
             <>
               <div className={clsx(css.content, contentClassName)}>
                 <div className={css.header}>
-                  <h2 className={css.title}>{title}</h2>
+                  <h2 className={clsx(css.title, titleClassName)}>{title}</h2>
                   <button type="button" className={css.close} aria-label={closeLabel} onClick={onClose}>
                     <IconCloseOutline16 size={14} />
                   </button>
                 </div>
                 {description !== undefined && description !== '' && (
-                  <p className={css.description}>{description}</p>
+                  <p className={clsx(css.description, descriptionClassName)}>{description}</p>
                 )}
                 {children !== undefined && <div className={css.body}>{children}</div>}
               </div>

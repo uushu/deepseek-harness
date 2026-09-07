@@ -195,6 +195,37 @@ export abstract class SessionPersistence extends Service {
    * @returns one snapshot per stored session.
    */
   abstract list(options?: SessionPersistenceListOptions): Promise<readonly SessionPersistenceSnapshot[]>
+
+  /**
+   * Retarget one stored session's canonical working directory — its Workspace
+   * folder was renamed on disk, so the stored header cwd must follow and any
+   * artifact addressed by cwd must move with it. Cold sessions only: a
+   * session with an active writer (a live Agent's write handle) rejects, and
+   * callers must stop or idle those sessions first.
+   * @param id - the stored session whose cwd is retargeted.
+   * @param cwd - the new absolute working directory.
+   * @returns resolution after the stored header (and any cwd-addressed
+   * artifact) reflects the new cwd.
+   * @throws {SessionAlreadyOwnedError} when the session has an active writer;
+   *   backends without header rewrites reject with a plain Error.
+   */
+  retargetCwd(_id: SessionId, _cwd: string): Promise<void> {
+    return Promise.reject(new Error('this session persistence backend does not support cwd retargeting'))
+  }
+
+  /**
+   * Permanently remove one stored session's header and event log. The hard-delete
+   * primitive backs an explicit trash purge and retention sweep. It is idempotent
+   * for an unknown id; a backend that cannot delete a session must reject rather
+   * than silently leaving it eligible to reappear after a restart.
+   * @param id - the persisted session to destroy.
+   * @returns resolution after the backend has durably forgotten the session.
+   * @throws {SessionAlreadyOwnedError} when a live writer still owns the session.
+   */
+  remove(_id: SessionId): Promise<void> {
+    return Promise.reject(new Error('this session persistence backend does not support session removal'))
+  }
+
 }
 
 export default SessionPersistence

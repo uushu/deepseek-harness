@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { SESSION_FORMAT_VERSION, SessionLogOffset, SessionSeq, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
-import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
+import { SessionAlreadyOwnedError, type SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import {
   assertNoRetiredHeaderFields, encodeSegment, eventLines, generationLogFilename, generationLogPath,
@@ -2274,5 +2274,107 @@ describe('JsonlSessionPersistence: edge cases', () => {
     }, surfaceOp: 'append' }] as unknown as SessionEvent[]
     await writeLog(ctx.sessionPersistence, m, events)
     expect((await readAll(ctx.sessionPersistence, m.id)).events).toEqual(events)
+  })
+})
+
+describe('JsonlSessionPersistence: cwd retarget', () => {
+  let ctx: Context
+  let root: string
+
+  beforeEach(async () => {
+    root = await freshRoot()
+    ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
+  })
+
+  it('rewrites the header line and relocates the artifact to the new project directory', async () => {
+    const m = meta('retarget', '/proj/old')
+    await writeLog(ctx.sessionPersistence, m, oneTurnLog())
+    const oldPath = rawLogPath(root, '/proj/old', m.id)
+    const newPath = rawLogPath(root, '/proj/new', m.id)
+    const original = await readFile(oldPath, 'utf8')
+    expect(original.split('\n', 1)[0]).toContain('"/proj/old"')
+
+    await ctx.sessionPersistence.retargetCwd(m.id, '/proj/new')
+
+    // The old artifact is gone; the retargeted one carries the new cwd in its
+    // header line and the exact event body.
+    await expect(readFile(oldPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    const raw = await readFile(newPath, 'utf8')
+    expect(raw.split('\n', 1)[0]).toContain('"/proj/new"')
+    expect(raw.slice(raw.indexOf('\n') + 1)).toBe(original.slice(original.indexOf('\n') + 1))
+    expect((await ctx.sessionPersistence.list()).find(s => s.header.id === m.id)?.header.cwd).toBe('/proj/new')
+    expect((await readAll(ctx.sessionPersistence, m.id)).events).toEqual(oneTurnLog())
+  })
+
+  it('refuses a pending or live writer and leaves the source session intact', async () => {
+    const pending = meta('retarget-pending', '/proj/a')
+    const pendingHandle = await ctx.sessionPersistence.create(pending)
+    await expect(ctx.sessionPersistence.retargetCwd(pending.id, '/proj/b'))
+      .rejects.toBeInstanceOf(SessionAlreadyOwnedError)
+    await pendingHandle.close()
+
+    const live = meta('retarget-live', '/proj/a')
+    const handle = await ctx.sessionPersistence.create(live)
+    await handle.append(oneTurnLog())
+    await expect(ctx.sessionPersistence.retargetCwd(live.id, '/proj/b'))
+      .rejects.toBeInstanceOf(SessionAlreadyOwnedError)
+    await handle.close()
+
+    expect((await readAll(ctx.sessionPersistence, live.id)).meta.cwd).toBe('/proj/a')
+  })
+
+  it('is a no-op for a same-cwd retarget after its write handle closes', async () => {
+    const same = meta('retarget-same', '/proj/a')
+    await writeLog(ctx.sessionPersistence, same, oneTurnLog())
+    const path = rawLogPath(root, '/proj/a', same.id)
+    const before = await readFile(path, 'utf8')
+
+    await ctx.sessionPersistence.retargetCwd(same.id, '/proj/a')
+
+    expect(await readFile(path, 'utf8')).toBe(before)
+  })
+})
+
+describe('JsonlSessionPersistence: remove', () => {
+  let ctx: Context
+  let root: string
+
+  beforeEach(async () => {
+    root = await freshRoot()
+    ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
+  })
+
+  it('destroys every visible generation and forgets the session', async () => {
+    const m = meta('remove-me', '/proj/rm')
+    await writeLog(ctx.sessionPersistence, m, oneTurnLog())
+    expect((await ctx.sessionPersistence.list()).map(s => s.header.id)).toContain(m.id)
+
+    await ctx.sessionPersistence.remove(m.id)
+
+    // The header lives only in the generation artifact, so a cold list can
+    // never resurface the session after its canonical files are gone.
+    expect((await ctx.sessionPersistence.list()).map(s => s.header.id)).not.toContain(m.id)
+    await expect(readFile(rawLogPath(root, '/proj/rm', m.id), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(ctx.sessionPersistence.open(m.id, 'read')).rejects.toThrow()
+  })
+
+  it('refuses an active writer without deleting its durable session', async () => {
+    const m = meta('remove-live', '/proj/rm')
+    const handle = await ctx.sessionPersistence.create(m)
+    await handle.append(oneTurnLog())
+
+    await expect(ctx.sessionPersistence.remove(m.id)).rejects.toBeInstanceOf(SessionAlreadyOwnedError)
+    expect((await ctx.sessionPersistence.stat(m.id))?.header.id).toBe(m.id)
+
+    await handle.close()
+  })
+
+  it('is an idempotent no-op for an absent session', async () => {
+    await ctx.sessionPersistence.remove(meta('remove-ghost', '/proj/rm').id)
+    expect(await ctx.sessionPersistence.list()).toHaveLength(0)
   })
 })

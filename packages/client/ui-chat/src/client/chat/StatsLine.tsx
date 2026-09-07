@@ -5,6 +5,7 @@
 import { Fragment, memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { UseProjection } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { LlmProviderBalance } from '@deepseek-ai/dsh-llm'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: merges the sessionStats key into SessionProjectionMap for useProjection.
 import type {} from '@deepseek-ai/dsh-session-stats/client'
@@ -114,12 +115,19 @@ export function billedInputTokens(usage: TokenUsageProjection): number {
   return usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens
 }
 
+/** Format a provider balance with the conventional yuan symbol where applicable. */
+export function formatBalance(balance: LlmProviderBalance): string {
+  return balance.currency === 'CNY' ? `¥${balance.total}` : `${balance.total} ${balance.currency}`
+}
+
 /** Props: the conversation-snapshot selector plus the projection read seat. */
 export interface StatsLineProps {
   useChat: SnapshotSelectorHook<ChatSnapshot>
   useProjection: UseProjection
   /** The owning dock's locale seat. */
   t: ChatViewSlotProps['t']
+  /** Most recently resolved provider balance; absent values leave the row hidden. */
+  balance?: LlmProviderBalance | null
 }
 
 /** Render and measure one non-empty statistics line. */
@@ -160,7 +168,7 @@ const StatsLineContent = memo(function StatsLineContent({
   )
 })
 
-export const StatsLine = memo(function StatsLine({ useChat, useProjection, t }: StatsLineProps) {
+export const StatsLine = memo(function StatsLine({ useChat, useProjection, t, balance }: StatsLineProps) {
   const settledNodes = useChat(s => s.legacy.nodes)
   const usage = useProjection('tokenUsage')
   // Every figure rides the durable sessionStats projection, so paging and
@@ -202,6 +210,9 @@ export const StatsLine = memo(function StatsLine({ useChat, useProjection, t }: 
       input: formatTokens(billedInputTokens(usage), t),
       output: formatTokens(usage.outputTokens, t),
     }))
+  }
+  if (balance !== undefined && balance !== null) {
+    groups.push(t('stats.balance', { amount: formatBalance(balance) }))
   }
   const line = groups.join(' | ')
   if (groups.length === 0) return null

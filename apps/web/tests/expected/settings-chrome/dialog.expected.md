@@ -7,12 +7,27 @@
     - button "模型":
       - img
       - text: 模型
+    - button "个性化":
+      - img
+      - text: 个性化
     - button "插件":
       - img
       - text: 插件
+    - button "MCP":
+      - img
+      - text: MCP
+    - button "技能":
+      - img
+      - text: 技能
     - button "Agent 预设":
       - img
       - text: Agent 预设
+    - button "已归档会话":
+      - img
+      - text: 已归档会话
+    - button "回收站":
+      - img
+      - text: 回收站
   - button "打开配置文件"
   - button "关闭":
     - img

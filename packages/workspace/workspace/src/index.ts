@@ -215,18 +215,38 @@ export class WorkspaceRegistry extends Service {
       if (entity === undefined) throw new Error(`cannot retarget unknown workspace '${id}'`)
       const oldPath = entity.path
       if (oldPath === newPath) return
+      // The canonical-cwd index moves BEFORE the record write (the entity's
+      // membership filter must keep every attached session), but a failed
+      // durable write puts the in-memory index back so the workspace never
+      // half-moves within this run.
+      const movedPaths: Array<{ sessionId: SessionId; path: string; invalidReason: string | undefined }> = []
       for (const [sessionId, path] of this.sessionPaths) {
         if (path !== oldPath) continue
+        const invalidReason = this.invalidSessionPaths.get(sessionId)
         this.sessionPaths.set(sessionId, newPath)
         this.invalidSessionPaths.delete(sessionId)
+        movedPaths.push({ sessionId, path, invalidReason })
       }
       // The cached headers carry the same canonical cwd; refresh the copies
       // so attach-time validation against the new path succeeds in this run.
+      const movedHeaders: Array<{ sessionId: SessionId; header: SessionHeader }> = []
       for (const [sessionId, header] of this.headers) {
         if (header.cwd !== oldPath) continue
         this.headers.set(sessionId, { ...header, cwd: newPath })
+        movedHeaders.push({ sessionId, header })
       }
-      await entity.retargetPath(newPath)
+      try {
+        await entity.retargetPath(newPath)
+      } catch (error: unknown) {
+        for (const { sessionId, path, invalidReason } of movedPaths) {
+          this.sessionPaths.set(sessionId, path)
+          if (invalidReason !== undefined) this.invalidSessionPaths.set(sessionId, invalidReason)
+        }
+        for (const { sessionId, header } of movedHeaders) {
+          this.headers.set(sessionId, header)
+        }
+        throw error
+      }
     })
   }
 
@@ -281,6 +301,26 @@ export class WorkspaceRegistry extends Service {
       }
       const state = this.requireState()
       await this.setState({ ...state, archivedSessionIds: [...state.archivedSessionIds, sessionId] })
+    })
+  }
+
+  /**
+   * Unarchive one session durably: it returns to every grouping surface at
+   * its original workspace accounting slot. No session-existence check — the
+   * archive set is the authority. An id outside the set resolves without
+   * writing.
+   * @param sessionId - The session to unarchive.
+   * @returns resolution after durability.
+   */
+  unarchiveSession(sessionId: SessionId): Promise<void> {
+    return this.enqueueOperation(async () => {
+      const archived = this.requireState().archivedSessionIds
+      if (!archived.includes(sessionId)) return
+      const state = this.requireState()
+      await this.setState({
+        ...state,
+        archivedSessionIds: archived.filter(id => id !== sessionId),
+      })
     })
   }
 

@@ -22,14 +22,17 @@
  * and a hole has exactly one declaring entry — they carry the same owner
  * contract and the same occupant.
  */
-import type { HostObservable, PropsHooks, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import type { HostObservable, InjectFace, PropsHooks, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pull the owner SlotMap merges into programs that resolve the
 // runtime shares below.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls the settings shell's SlotMap merge for the recovery sections.
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SessionSearchResultItem } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SessionPage, SessionTrashItem } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { createWorkspaceViewStore } from '../stores.ts'
 
@@ -135,6 +138,10 @@ export type WorkspaceBrowserInjected = {
    */
   archiveSession: (sessionId: SessionId) => Promise<void>
   /**
+   * Move a Session to recoverable trash without changing its workspace files.
+   */
+  trashSession: (sessionId: SessionId) => Promise<void>
+  /**
    * Reorder a session inside its Workspace account (DOM-insertBefore
    * semantics: omitted anchor appends to the end). The view refreshes from
    * the Host response/changed frame; failures leave the order unchanged.
@@ -173,4 +180,47 @@ export type WorkspacePickerProps =
   & PropsRenderSlots<'conversation.hero.workspace.directoryFlow'>
   & Omit<WorkspacePickerInjected, 'hooks'>
   & DirectoryPickingHooks
+  & PropsLocale<'workspace'>
+/**
+ * Deleted-conversations settings-section injected share: trash-domain actions
+ * read durable recovery data on demand. The list refetches after mutations;
+ * it has no live feed.
+ */
+export type DeletedConversationsSectionInjected = {
+  /** List recoverable sessions after the Host's retention sweep. */
+  listTrashed: (signal?: AbortSignal) => Promise<readonly SessionTrashItem[]>
+  /** Read one bounded history page without returning a trashed session to ordinary lists. */
+  trashHistory: (
+    sessionId: SessionId,
+    beforeSeq?: number,
+    maxMessages?: number,
+    signal?: AbortSignal,
+  ) => Promise<SessionPage>
+  /** Restore the conversation to its surviving former workspaces; files remain as they are. */
+  restore: (sessionId: SessionId) => Promise<void>
+  /** Permanently remove a recoverable session after explicit confirmation. */
+  purge: (sessionId: SessionId) => Promise<void>
+}
+
+/** Full trash section props: the settings owner share, injected actions, and locale seat. */
+export type DeletedConversationsSectionProps =
+  PropsRuntime<'settings.section'>
+  & InjectFace<DeletedConversationsSectionInjected>
+  & PropsLocale<'workspace'>
+
+/**
+ * Archived-conversations settings-section injected share. The page's global
+ * standard hooks project the live Session and Workspace stores.
+ */
+export type ArchivedConversationsSectionInjected = {
+  /** Restore an archived session to ordinary workspace grouping. */
+  unarchive: (sessionId: SessionId) => Promise<void>
+  /** Move an archived session into recoverable trash. */
+  trashSession: (sessionId: SessionId) => Promise<void>
+}
+
+/** Full archive section props: the settings owner share, injected actions, and locale seat. */
+export type ArchivedConversationsSectionProps =
+  PropsRuntime<'settings.section'>
+  & InjectFace<ArchivedConversationsSectionInjected>
   & PropsLocale<'workspace'>

@@ -8,6 +8,8 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type {
   SessionControlBaseline,
   SessionControlFrame,
+  SessionListTrashedValue,
+  SessionPage,
   SessionQueuedItem,
   SessionSummary,
   SessionJob as JobView,
@@ -541,6 +543,63 @@ export class SessionManager {
         hasMore: result.value.hasMore,
       },
     }
+  }
+  /**
+   * Move one ordinary Session into recoverable-delete state.
+   * @param sessionId - Session identity moved into the trash.
+   * @returns Host confirmation or a folded transport failure.
+   */
+  async trash(sessionId: SessionId): Promise<RemoteResult<{ trashed: true }>> {
+    return await this.remote.session.trash({ sessionId })
+  }
+
+  /**
+   * Restore one recoverable Session.
+   * @param sessionId - Session identity leaving the trash.
+   * @returns Host confirmation or a folded transport failure.
+   */
+  async restore(sessionId: SessionId): Promise<RemoteResult<{ restored: true }>> {
+    return await this.remote.session.restore({ sessionId })
+  }
+
+  /**
+   * Permanently remove one recoverable Session after its writer releases it.
+   * @param sessionId - Session identity whose durable log is destroyed.
+   * @returns Host confirmation or a folded transport failure.
+   */
+  async purge(sessionId: SessionId): Promise<RemoteResult<{ purged: true }>> {
+    return await this.remote.session.purge({ sessionId })
+  }
+
+  /**
+   * List recoverable Session metadata without changing ordinary list state.
+   * @param signal - optional cancellation for the remote request.
+   * @returns Host rows or a folded transport failure.
+   */
+  async listTrashed(signal?: AbortSignal): Promise<RemoteResult<SessionListTrashedValue>> {
+    signal?.throwIfAborted()
+    return await this.remote.session.listTrashed({})
+  }
+
+  /**
+   * Read one message-aligned preview page for a recoverable Session.
+   * @param sessionId - Session identity currently in the trash.
+   * @param beforeSeq - optional backwards cursor.
+   * @param maxMessages - optional page budget.
+   * @param signal - optional cancellation for the remote request.
+   * @returns Host page or a folded transport failure.
+   */
+  async trashHistory(
+    sessionId: SessionId,
+    beforeSeq?: number,
+    maxMessages?: number,
+    signal?: AbortSignal,
+  ): Promise<RemoteResult<SessionPage>> {
+    return await this.remote.session.trashHistory({
+      sessionId,
+      ...(beforeSeq === undefined ? {} : { beforeSeq }),
+      ...(maxMessages === undefined ? {} : { maxMessages }),
+    }, signal)
   }
 
   /**

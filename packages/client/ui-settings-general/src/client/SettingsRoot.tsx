@@ -15,7 +15,8 @@ import clsx from 'clsx'
 import {
   ConnectionIndicator,
   IconAgentPresetOutline16, IconCloseOutline16, IconDataOutline16,
-  IconPersonalizationOutline16, IconSettingsOutline16,
+  IconDocumentOutline16, IconLinkOutline16, IconPersonalizationOutline16, IconSettingsOutline16,
+  IconSkillOutline16, IconThemeOutline16, IconTrashOutline16, IconUserOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConnectionIndicatorState } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
@@ -25,9 +26,15 @@ const RECOVERY_CONFIRMATION_MS = 2_000
 
 /** Nav glyph by section id; unknown ids fall back to the settings gear. */
 function navIcon(id: string) {
+  if (id === 'personalization') return <IconUserOutline16 className={css.navIcon} size={16} />
+  if (id === 'theme') return <IconThemeOutline16 className={css.navIcon} size={16} />
   if (id === 'models') return <IconDataOutline16 className={css.navIcon} size={16} />
   if (id === 'agent-presets') return <IconAgentPresetOutline16 className={css.navIcon} size={16} />
   if (id === 'plugins') return <IconPersonalizationOutline16 className={css.navIcon} size={16} />
+  if (id === 'mcp') return <IconLinkOutline16 className={css.navIcon} size={16} />
+  if (id === 'skills') return <IconSkillOutline16 className={css.navIcon} size={16} />
+  if (id === 'deleted-conversations') return <IconTrashOutline16 className={css.navIcon} size={16} />
+  if (id === 'archived-conversations') return <IconDocumentOutline16 className={css.navIcon} size={16} />
   return <IconSettingsOutline16 className={css.navIcon} size={16} />
 }
 

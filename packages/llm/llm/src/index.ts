@@ -20,6 +20,7 @@ import type {
   LlmModelInfo,
   LlmResolvedModelInfo,
   LlmProviderInfo,
+  LlmProviderBalance,
   ModelModality,
   StreamChunk,
 } from './types.ts'
@@ -211,6 +212,17 @@ export abstract class LlmAdapter {
    */
   providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined {
     return undefined
+  }
+
+  /**
+   * Read non-critical account balance display data for one owned provider
+   * route. Adapters without a balance endpoint leave the chat statistic hidden.
+   * @param _provider - a route passed to `registerAdapter()` for this instance.
+   * @param _signal - cancellation for this balance lookup.
+   * @returns a displayable balance, or `undefined` when the route does not report one.
+   */
+  balance(_provider: string, _signal?: AbortSignal): Promise<LlmProviderBalance | undefined> {
+    return Promise.resolve(undefined)
   }
 
   /**
@@ -465,6 +477,20 @@ export class LlmRuntime extends TypertRemoteService {
   @Remote
   listProviders(): LlmProviderInfo[] {
     return [...this.adapters.values()].map(({ provider }) => ({ ...provider }))
+  }
+
+  /**
+   * Ask registered provider routes for advisory account-balance display data.
+   * @param signal - cancellation supplied by the Remote carrier.
+   * @returns the first provider balance in registration order, or `null` when none is available.
+   */
+  @Remote('balance')
+  async remoteBalance(signal: AbortSignal): Promise<LlmProviderBalance | null> {
+    for (const { adapter, provider } of this.adapters.values()) {
+      const balance = await adapter.balance(provider.id, signal)
+      if (balance !== undefined) return { ...balance }
+    }
+    return null
   }
 
   /**

@@ -3,7 +3,7 @@ import { Context, FiberState, type Plugin } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import type { AgentPresets } from '@deepseek-ai/dsh-agent-presets'
-import PluginInventoryGateway from '../src/index.ts'
+import PluginInventoryGateway, { isMcpClientName } from '../src/index.ts'
 
 const contexts: Context[] = []
 
@@ -26,6 +26,8 @@ async function harness(): Promise<{
   await ctx.plugin(Loader)
   ctx.loader.builtins.active = activePlugin
   ctx.loader.builtins.pending = pendingPlugin
+  ctx.loader.builtins['@deepseek-ai/dsh-mcp-client'] = activePlugin
+  ctx.loader.builtins['sub/@deepseek-ai/dsh-mcp-client'] = activePlugin
   await ctx.plugin(PluginInventoryGateway)
   const inventory = ctx.get('pluginInventory') as PluginInventoryGateway
   return { ctx, inventory }
@@ -122,5 +124,33 @@ describe('PluginInventoryGateway', () => {
       },
       { id: 'damaged', trust: 'user', isDefault: false, broken: 'the composition file is missing', rows: [] },
     ])
+  })
+
+  it('excludes mcp-client server instances (owned by the MCP settings section)', async () => {
+    const { ctx, inventory } = await harness()
+    const regularId = await ctx.loader.create({ name: 'cordis:active' })
+    const mcpId = await ctx.loader.create({
+      name: 'cordis:@deepseek-ai/dsh-mcp-client',
+      config: { transport: 'stdio', serverName: 'fs', command: 'node' },
+    })
+    const scopedMcpId = await ctx.loader.create({
+      name: 'cordis:sub/@deepseek-ai/dsh-mcp-client',
+      config: { transport: 'streamable-http', serverName: 'remote', url: 'https://x' },
+    })
+
+    const snapshot = await inventory.list()
+    expect(Array.from(ctx.loader.entries())).toHaveLength(3)
+    expect(snapshot.entries).toEqual([
+      { entryId: regularId, moduleName: 'cordis:active', enabled: true, fiberPhase: 'active' },
+    ])
+    expect(snapshot.entries.some(entry => entry.entryId === mcpId)).toBe(false)
+    expect(snapshot.entries.some(entry => entry.entryId === scopedMcpId)).toBe(false)
+  })
+
+  it('recognizes mcp-client module names in both the cordis and bare forms', () => {
+    expect(isMcpClientName('cordis:@deepseek-ai/dsh-mcp-client')).toBe(true)
+    expect(isMcpClientName('@deepseek-ai/dsh-mcp-client')).toBe(true)
+    expect(isMcpClientName('cordis:sub/@deepseek-ai/dsh-mcp-client')).toBe(true)
+    expect(isMcpClientName('cordis:active')).toBe(false)
   })
 })

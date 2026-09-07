@@ -8,7 +8,7 @@ import type {
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import { StatsLine, deriveStats, formatDuration, type StatsLineProps } from '../src/client/chat/StatsLine.tsx'
+import { StatsLine, deriveStats, formatBalance, formatDuration, type StatsLineProps } from '../src/client/chat/StatsLine.tsx'
 import { formatTokens } from '../src/client/chat/token-format.ts'
 import { en, zh } from '../src/client/locale.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
@@ -133,6 +133,11 @@ describe('formatters', () => {
     expect(formatDuration(45_230, tEn)).toBe('45.2s')
     expect(formatDuration(162_000, tEn)).toBe('2m42s')
   })
+
+  it('formats yuan with its currency symbol and other balances with their code', () => {
+    expect(formatBalance({ currency: 'CNY', total: '12.34', granted: '0', toppedUp: '12.34' })).toBe('¥12.34')
+    expect(formatBalance({ currency: 'USD', total: '7.50', granted: '2.50', toppedUp: '5.00' })).toBe('7.50 USD')
+  })
 })
 
 describe('StatsLine', () => {
@@ -179,6 +184,14 @@ describe('StatsLine', () => {
 
     act(() => { set({ nodes: [assistant(1, 1), assistant(2, 1)] }) })
     expect(observers).toBe(1)
+  })
+
+  it('renders an available provider balance even before the first settled turn', () => {
+    const { source } = makeSource()
+    const view = render(<StatsLine {...props(source, {})} balance={{
+      currency: 'CNY', total: '12.34', granted: '0', toppedUp: '12.34',
+    }} />)
+    expect(view.container.textContent).toBe('Balance ¥12.34')
   })
 
   it('renders the grouped stats row and hides a brand-new empty session', () => {

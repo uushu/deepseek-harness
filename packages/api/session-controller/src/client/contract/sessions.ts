@@ -5,6 +5,7 @@
  * explicit act of widening what features may do to the sessions domain.
  */
 import type { Context } from '@deepseek-ai/cordis'
+import type { SessionPage, SessionTrashItem } from '../../types.ts'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
@@ -95,6 +96,45 @@ export interface ISessions {
    * @throws when the fork fails, or when a requested child-title rename fails after creation.
    */
   fork(opts: { sessionId: SessionId; atSeq?: number; increaseTitle?: boolean }): Promise<SessionId>
+  /**
+   * Hide one ordinary Session while retaining its durable log for recovery.
+   * File changes remain exactly as they were when the Session was hidden.
+   * @param sessionId - ordinary Session identity moved into the trash.
+   * @returns resolution after ordinary Session lists receive the removal event.
+   */
+  trashSession(sessionId: SessionId): Promise<void>
+  /**
+   * Restore one recoverable Session to its surviving former workspaces.
+   * @param sessionId - Session identity leaving the trash.
+   * @returns resolution after ordinary Session lists receive the restored row.
+   */
+  restoreSession(sessionId: SessionId): Promise<void>
+  /**
+   * Permanently remove one trashed Session after its Host writer has released it.
+   * @param sessionId - Session identity whose durable log is destroyed.
+   * @returns resolution after the durable log and recovery metadata are removed.
+   */
+  purgeSession(sessionId: SessionId): Promise<void>
+  /**
+   * Read recoverable Session rows ordered by newest deletion first.
+   * @param signal - optional cancellation for the remote list request.
+   * @returns current recoverable-delete metadata.
+   */
+  listTrashed(signal?: AbortSignal): Promise<readonly SessionTrashItem[]>
+  /**
+   * Read one message-aligned preview page for a currently trashed Session.
+   * @param sessionId - recoverable Session identity.
+   * @param beforeSeq - optional backwards cursor.
+   * @param maxMessages - optional whole-message page budget.
+   * @param signal - optional cancellation for the remote page request.
+   * @returns chronological page records for the read-only preview.
+   */
+  trashHistory(
+    sessionId: SessionId,
+    beforeSeq?: number,
+    maxMessages?: number,
+    signal?: AbortSignal,
+  ): Promise<SessionPage>
   /**
    * Resolve an Agent-scoped context view (use-and-discard).
    * @param id - session id.

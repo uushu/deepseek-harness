@@ -397,7 +397,6 @@
 .cardDetails {
   border-top: 0.5px solid var(--dsw-alias-border-l2);
   padding: 10px 14px 12px;
-  background: var(--dsw-alias-bg-module-platform);
 }
 
 .entryValue {

@@ -44,9 +44,12 @@ import type {
   SessionFollowFrame,
   SessionFollowRequest,
   SessionListRequest,
+  SessionListTrashedRequest,
+  SessionListTrashedValue,
   SessionListValue,
   SessionOpenWorkspacePathRequest,
   SessionOpenWorkspacePathValue,
+  SessionPurgeValue,
   SessionPage,
   SessionPageRequest,
   SessionPromptRequest,
@@ -55,7 +58,11 @@ import type {
   SessionRenameValue,
   SessionSearchRequest,
   SessionSearchValue,
+  SessionRestoreValue,
   SessionSelectModelRequest,
+  SessionTrashHistoryRequest,
+  SessionTrashRequest,
+  SessionTrashValue,
   SessionSelectModelValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
@@ -66,6 +73,11 @@ export interface TestSessionRemote {
   canOpenWorkspacePath(): Promise<RemoteResult<boolean>>
   list(request: SessionListRequest, signal?: AbortSignal): Promise<RemoteResult<SessionListValue>>
   search(request: SessionSearchRequest, signal?: AbortSignal): Promise<RemoteResult<SessionSearchValue>>
+  trash(request: SessionTrashRequest): Promise<RemoteResult<SessionTrashValue>>
+  restore(request: SessionTrashRequest): Promise<RemoteResult<SessionRestoreValue>>
+  purge(request: SessionTrashRequest): Promise<RemoteResult<SessionPurgeValue>>
+  listTrashed(request: SessionListTrashedRequest): Promise<RemoteResult<SessionListTrashedValue>>
+  trashHistory(request: SessionTrashHistoryRequest, signal?: AbortSignal): Promise<RemoteResult<SessionPage>>
   create(request: SessionCreateRequest): Promise<RemoteResult<SessionCreateValue>>
   selectModel(request: SessionSelectModelRequest): Promise<RemoteResult<SessionSelectModelValue>>
   modelCatalog(): Promise<RemoteResult<ModelCatalog>>
@@ -333,6 +345,14 @@ export function createSessionTestRemote(
     ),
     search: (request, signal = new AbortController().signal) => remoteResult(
       () => direct.search(request, signal),
+      signal,
+    ),
+    trash: request => remoteResult(() => direct.trash(request)),
+    restore: request => remoteResult(() => direct.restore(request)),
+    purge: request => remoteResult(() => direct.purge(request)),
+    listTrashed: request => remoteResult(() => direct.listTrashed(request)),
+    trashHistory: (request, signal = new AbortController().signal) => remoteResult(
+      () => direct.trashHistory(request, signal),
       signal,
     ),
     create: request => remoteResult(() => direct.create(request)),

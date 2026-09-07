@@ -424,6 +424,17 @@ export class JsonlBackendTracker {
   }
 
   /**
+   * Whether this process currently owns or is constructing a write handle for
+   * one session. The marker covers both a live handle and the short claim
+   * interval before a handle is adopted.
+   * @param id - session identity to test.
+   * @returns true while this backend must reject a destructive operation.
+   */
+  hasWriteOwner(id: SessionId): boolean {
+    return this.writers.has(id)
+  }
+
+  /**
    * Iterate the pending sessions for listing.
    * @returns the pending entries, keyed by session id.
    */

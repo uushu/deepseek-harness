@@ -22,6 +22,13 @@ function pluginEntryId(value: string): PluginEntryId {
   return value as PluginEntryId
 }
 
+/** Whether one Loader entry is an mcp-client instance — owned by the MCP settings section, not the plugin list. */
+export function isMcpClientName(moduleName: string): boolean {
+  const normalized = moduleName.startsWith('cordis:') ? moduleName.slice(7) : moduleName
+  if (normalized === '@deepseek-ai/dsh-mcp-client') return true
+  return normalized.endsWith('/@deepseek-ai/dsh-mcp-client')
+}
+
 /** Runtime mirror: FiberState is a cross-package const enum. */
 const FIBER_STATE = {
   PENDING: 0 as FiberState.PENDING,
@@ -59,14 +66,15 @@ export class PluginInventoryGateway extends TypertRemoteService {
    * preset's composition rows, because those rows — not the Loader's own
    * entries — are where a deployment that mounts the roster runs its
    * model-facing plugins.
-   * @returns Current non-group Loader entries in Loader order, with per-preset
-   * compositions when a roster is composed.
+   * @returns Current non-group Loader entries in Loader order, excluding
+   * mcp-client server instances, with per-preset compositions when composed.
    */
   @Remote('list')
   async list(): Promise<PluginInventorySnapshot> {
     const entries: PluginInventoryEntry[] = []
     for (const entry of this.ctx.loader.entries()) {
       if (entry.options.group) continue
+      if (isMcpClientName(entry.options.name)) continue
       entries.push({
         entryId: pluginEntryId(entry.id),
         moduleName: entry.options.name,

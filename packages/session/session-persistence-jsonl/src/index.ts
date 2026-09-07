@@ -21,7 +21,7 @@ import { randomBytes } from 'node:crypto'
 import {
   SessionPersistence, SessionPersistenceRevision, SessionFormatUnsupportedError,
   SessionPersistenceCorruptionError,
-  SessionAlreadyExistsError, SessionPersistenceNotFoundError,
+  SessionAlreadyExistsError, SessionAlreadyOwnedError, SessionPersistenceNotFoundError,
   assertStoredId, materializeCreateHeader, sessionFormatVersionRefusal, validateStoredEvents,
   type SessionAccess, type SessionHandle,
   type SessionLocation, type SessionPersistenceCreateOptions,
@@ -381,6 +381,87 @@ class JsonlSessionPersistence extends SessionPersistence {
     return snapshots
   }
 
+  /**
+   * Retarget a materialized session's cwd after its Workspace directory moved.
+   * A live or still-unmaterialized writer rejects so its durable log cannot be
+   * copied while events append. The replacement artifact publishes before the
+   * source generations are removed, so an interrupted move leaves a usable
+   * durable copy rather than losing the session.
+   * @param id - persisted session to relocate.
+   * @param cwd - replacement canonical working directory.
+   */
+  override async retargetCwd(id: SessionId, cwd: string): Promise<void> {
+    await this.ensureRootEncoding()
+    if (this.tracker.hasWriteOwner(id)) throw new SessionAlreadyOwnedError(id)
+    const resolved = await this.findLog(id)
+    if (resolved === undefined) return
+    const sourceDir = dirname(resolved.currentPath)
+    const destinationPath = logPath(this.root, cwd, id, this.compression)
+    if (destinationPath === resolved.currentPath) return
+    this.tracker.claimWrite(id)
+    let lease: SessionWriteLease | undefined
+    try {
+      lease = await this.acquireLease(id, undefined, sourceDir)
+      const stored = await this.requireStoredLog(id)
+      await this.materialize({ ...stored.meta, cwd }, stored.inheritedEventCount, stored.events)
+      await this.removeGenerationArtifacts(sourceDir)
+      this.coldLogMemo.delete(id)
+      await this.pruneEmptyDirs(resolved.currentPath)
+      if (process.platform !== 'win32') {
+        try {
+          await this.syncDirPosix(sourceDir)
+        } catch {
+          // A successfully pruned source directory has no durable metadata left to sync.
+        }
+      }
+    } finally {
+      try {
+        await lease?.release()
+      } finally {
+        this.tracker.releaseClaim(id)
+      }
+    }
+  }
+
+  /**
+   * Permanently remove every canonical JSONL generation for one session. A
+   * pending or live writer rejects before any filesystem change; an absent
+   * session is an idempotent no-op. The retained lock file is deliberately not
+   * removed because unlinking a POSIX lock path could split live exclusion.
+   * @param id - persisted session to destroy.
+   */
+  override async remove(id: SessionId): Promise<void> {
+    await this.ensureRootEncoding()
+    if (this.tracker.hasWriteOwner(id)) throw new SessionAlreadyOwnedError(id)
+    const resolved = await this.findLog(id)
+    if (resolved === undefined) return
+    const dir = dirname(resolved.currentPath)
+    this.tracker.claimWrite(id)
+    let lease: SessionWriteLease | undefined
+    try {
+      lease = await this.acquireLease(id, undefined, dir)
+      // Parse and validate the selected log under the lock before deleting any
+      // generation. A malformed or mismatched artifact remains intact for
+      // diagnosis instead of becoming an unverified deletion target.
+      await this.requireStoredLog(id)
+      await this.removeGenerationArtifacts(dir)
+      this.coldLogMemo.delete(id)
+      await this.pruneEmptyDirs(resolved.currentPath)
+      if (process.platform !== 'win32') {
+        try {
+          await this.syncDirPosix(dir)
+        } catch {
+          // The source directory may have been pruned after the final artifact vanished.
+        }
+      }
+    } finally {
+      try {
+        await lease?.release()
+      } finally {
+        this.tracker.releaseClaim(id)
+      }
+    }
+  }
   // --- handle-facing storage internals (package-private via the handle class below) ---
 
   /** Resolve and read one stored log, refusing loudly when the artifact is absent. */
@@ -1311,6 +1392,48 @@ class JsonlSessionPersistence extends SessionPersistence {
   }
 
   /** Return the highest canonical generation encoded with the other configured suffix. */
+  /**
+   * Remove only canonical generation artifacts in one already-authorized
+   * session directory. A same-named non-file stops the operation; callers then
+   * retain the session for diagnosis instead of following an unexpected link.
+   * @param dir - exact session directory selected through the persisted id.
+   */
+  private async removeGenerationArtifacts(dir: string): Promise<void> {
+    let entries: Dirent[]
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch (error: unknown) {
+      if (isENOENT(error)) return
+      throw error
+    }
+    const artifacts: string[] = []
+    for (const entry of entries) {
+      const selected = parseGenerationLogFilename(entry.name, this.compression)
+      const opposite = parseGenerationLogFilename(entry.name, this.oppositeCompression())
+      if (selected === undefined && opposite === undefined) continue
+      const path = join(dir, entry.name)
+      if (!entry.isFile()) {
+        throw new Error(`refusing to remove non-file session generation "${path}"`)
+      }
+      artifacts.push(path)
+    }
+    for (const path of artifacts) await rm(path, { force: true })
+  }
+
+  /** Remove the empty session/project directories an artifact move or purge left behind. */
+  private async pruneEmptyDirs(artifactPath: string): Promise<void> {
+    const session = dirname(artifactPath)
+    const project = dirname(session)
+    for (const candidate of [session, project]) {
+      try {
+        // Non-recursive: a directory containing another session, a lock file,
+        // or an unknown artifact is never removed by this cleanup step.
+        await rm(candidate, { force: true })
+      } catch {
+        // The candidate still contains data or is already gone; retaining it is safe.
+      }
+    }
+  }
   private async findOppositeGenerationInDirectory(dir: string): Promise<string | undefined> {
     let entries: Dirent[]
     try {

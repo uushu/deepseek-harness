@@ -200,6 +200,18 @@ export interface LlmProviderInfo {
   name: string
 }
 
+/** Displayable prepaid balance reported by one provider account. */
+export interface LlmProviderBalance {
+  /** Provider-reported currency code. */
+  currency: string
+  /** Total available balance in {@link currency}. */
+  total: string
+  /** Provider-granted portion of {@link total}. */
+  granted: string
+  /** User-funded portion of {@link total}. */
+  toppedUp: string
+}
+
 /** Merge-extensible provider model modality vocabulary. */
 export interface ModelModalityMap {
   text: 'text'

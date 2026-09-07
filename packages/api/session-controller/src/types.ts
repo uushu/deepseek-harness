@@ -200,6 +200,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'session/steer-unavailable': { readonly itemId: MessageId }
     'session/title-invalid': { readonly sessionId: SessionId }
     'session/fork-unavailable': { readonly sessionId: SessionId }
+    'session/trashed': { readonly sessionId: SessionId }
+    'session/trash-active': { readonly sessionId: SessionId }
     'subagent/not-found': {
       readonly parentSessionId: SessionId
       readonly childSessionId: SessionId
@@ -212,9 +214,11 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 }
 
-/** Session-addressed request for the human-invocable skill catalog. */
+/** Session-addressed request for the Skill catalog. */
 export interface SkillListRequest {
   readonly sessionId: SessionId
+  /** Include model-only entries for the settings inventory. */
+  readonly includeInternal?: boolean
 }
 
 /** One skill available to the Session's human-facing composer. */
@@ -227,11 +231,40 @@ export interface SkillEntry {
   readonly whenToUse?: string
   /** Whether the same skill is also advertised to the model. */
   readonly modelInvocable: boolean
+  /** Provider owning the skill body, such as the filesystem provider. */
+  readonly provider: string
+  /** Public source bucket that supplied the winning skill. */
+  readonly source: string
 }
 
 /** Human-invocable skills visible through one Session's composition. */
 export interface SkillListValue {
   readonly skills: readonly SkillEntry[]
+}
+
+/** One project Skill file to create or replace. */
+export interface SkillWriteInput {
+  /** Kebab-case directory and Skill identifier. */
+  readonly name: string
+  /** Short routing description stored in frontmatter. */
+  readonly description: string
+  /** Optional routing guidance stored in frontmatter. */
+  readonly whenToUse?: string
+  /** Whether the model may invoke the Skill without a user slash command. */
+  readonly modelInvocable: boolean
+  /** Markdown body stored after the frontmatter block. */
+  readonly content: string
+}
+
+/** Session-addressed project Skill write. */
+export interface SkillWriteRequest {
+  readonly sessionId: SessionId
+  readonly skill: SkillWriteInput
+}
+
+/** Project Skill write response. */
+export interface SkillWriteValue {
+  readonly name: string
 }
 
 /** Session list request. */
@@ -253,6 +286,51 @@ export interface SessionSearchRequest {
 export interface SessionSearchValue {
   readonly items: readonly SessionSearchItem[]
   readonly hasMore: boolean
+}
+/** One Session moved into recoverable-delete state. */
+export interface SessionTrashRequest {
+  readonly sessionId: SessionId
+}
+
+/** Confirmation that a Session is now hidden in recoverable-delete state. */
+export interface SessionTrashValue {
+  readonly trashed: true
+}
+
+/** Confirmation that a Session left recoverable-delete state. */
+export interface SessionRestoreValue {
+  readonly restored: true
+}
+
+/** Confirmation that a Session log and its recoverable-delete row were permanently removed. */
+export interface SessionPurgeValue {
+  readonly purged: true
+}
+
+/** One recoverable-delete list item, ordered by most-recent deletion. */
+export interface SessionTrashItem {
+  readonly sessionId: SessionId
+  readonly deletedAt: number
+  readonly title?: string
+  readonly cwd?: string
+  readonly parentSessionId?: SessionId
+  readonly origin?: 'subagent'
+  readonly agentPreset?: string
+}
+
+/** Empty recoverable-delete list request reserved for future pagination. */
+export interface SessionListTrashedRequest {}
+
+/** Recoverable-delete list response. */
+export interface SessionListTrashedValue {
+  readonly items: readonly SessionTrashItem[]
+}
+
+/** Read one backwards message-aligned preview page from a trashed Session. */
+export interface SessionTrashHistoryRequest {
+  readonly sessionId: SessionId
+  readonly beforeSeq?: number
+  readonly maxMessages?: number
 }
 
 /** Session creation or explicit-id adoption request. */

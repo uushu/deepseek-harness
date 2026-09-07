@@ -14,6 +14,7 @@ import type {
   GenerateOptions,
   ImageAttachmentAccess,
   LlmModelInfo,
+  LlmProviderBalance,
   LlmProviderInfo,
   PreparedAdapterCall,
   LlmResolvedModelInfo,
@@ -343,6 +344,29 @@ export function httpErrorCode(status: number, error?: WireError['error']): strin
   return `HTTP_${status}`
 }
 
+/** Decode the limited account-balance payload used by DeepSeek's official API. */
+function parseBalance(payload: unknown): LlmProviderBalance | undefined {
+  if (payload === null || typeof payload !== 'object') return undefined
+  const entries = (payload as { balance_infos?: unknown }).balance_infos
+  if (!Array.isArray(entries)) return undefined
+  const balances = entries.map((entry): LlmProviderBalance | undefined => {
+    if (entry === null || typeof entry !== 'object') return undefined
+    const fields = entry as Record<string, unknown>
+    const currency = fields.currency
+    const total = fields.total_balance
+    if (typeof currency !== 'string' || currency.length === 0
+      || typeof total !== 'string' || total.length === 0) return undefined
+    return {
+      currency,
+      total,
+      granted: typeof fields.granted_balance === 'string' ? fields.granted_balance : '0',
+      toppedUp: typeof fields.topped_up_balance === 'string' ? fields.topped_up_balance : '0',
+    }
+  })
+  return balances.find(balance => balance !== undefined && balance.total !== '0')
+    ?? balances.find(balance => balance !== undefined)
+}
+
 /**
  * The first real `LlmAdapter`. One instance serves every model name it was
  * registered under (the harness model name IS the wire model name).
@@ -364,6 +388,23 @@ export class DeepSeekAdapter extends LlmAdapter {
 
   override providerRetryPolicy(_provider: string): ResolvedRetryPolicy {
     return this.config.options().retryPolicy
+  }
+
+  override async balance(_provider: string, signal?: AbortSignal): Promise<LlmProviderBalance | undefined> {
+    const connection = this.config.options()
+    try {
+      const apiKey = await this.config.resolveApiKey(connection)
+      const timeout = AbortSignal.timeout(10_000)
+      const response = await fetch('https://api.deepseek.com/user/balance', {
+        headers: { authorization: `Bearer ${apiKey}` },
+        signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
+      })
+      if (!response.ok) return undefined
+      return parseBalance(await response.json())
+    } catch (_balanceUnavailable) {
+      // Balance is advisory UI data; a missing credential or transport failure must not break chat.
+      return undefined
+    }
   }
 
   override imageRequestPricing(_provider: string, model: string): ReturnType<LlmAdapter['imageRequestPricing']> {

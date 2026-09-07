@@ -26,6 +26,8 @@ import type {
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
+import { PersonalizationSection } from './PersonalizationSection.tsx'
+import type { PersonalizationSectionInjected } from './PersonalizationSection.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
 import { SettingsDocumentStore } from './settings-document-store.ts'
@@ -37,6 +39,9 @@ export type {
 export type {
   GeneralSectionComponentProps,
 } from './GeneralSection.tsx'
+export type {
+  PersonalizationSectionInjected, PersonalizationSectionProps,
+} from './PersonalizationSection.tsx'
 export type { SettingsDocumentActionInjected, SettingsDocumentActionProps } from './SettingsDocumentAction.tsx'
 export type { SettingsDocumentState } from './settings-document-store.ts'
 export { SettingsDocumentStore } from './settings-document-store.ts'
@@ -180,4 +185,48 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     children: { 'settings.general.item': { kind: 'list', scope: 'root' } },
   }, GeneralSection))
+
+  // The personalization page: the user's GUI-editable instruction list, stored
+  // in the `personalization` settings namespace (mirrored in the spec files).
+  const PERSONALIZATION_SETTINGS_NAMESPACE = 'personalization'
+  const personalizationDescribe = ctx.settingsScope.describe()
+  const personalizationInjected = (): PersonalizationSectionInjected => ({
+    load: async () => {
+      await personalizationDescribe.ensure()
+      const snapshot = personalizationDescribe.getSnapshot()
+      if (snapshot.view === undefined) {
+        if (snapshot.error !== null) throw new Error(snapshot.error)
+        return []
+      }
+      const view = snapshot.view.namespaces.find(
+        candidate => candidate.ns === PERSONALIZATION_SETTINGS_NAMESPACE,
+      )
+      const instructions = (view?.value as { instructions?: unknown } | undefined)?.instructions
+      return Array.isArray(instructions)
+        ? instructions.filter((item): item is string => typeof item === 'string')
+        : []
+    },
+    save: async (instructions) => {
+      const revision = personalizationDescribe.getSnapshot().view?.namespaces.find(
+        candidate => candidate.ns === PERSONALIZATION_SETTINGS_NAMESPACE,
+      )?.revision
+      const response = await ctx.remote.settings.mutate(
+        PERSONALIZATION_SETTINGS_NAMESPACE,
+        [{ op: 'set', path: ['instructions'], value: instructions }],
+        revision,
+      )
+      if (!response.ok) throw new Error(response.error.message)
+      personalizationDescribe.acceptView(response.value)
+    },
+  })
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'personalization',
+    // After the MCP/skills sections: plugins(15) → mcp(16) → skills(17) →
+    // personalization(18) → agent presets(20).
+    order: 18,
+    label: () => t('personalization.nav'),
+    locale: NS,
+    inject: personalizationInjected,
+  }, PersonalizationSection))
 }

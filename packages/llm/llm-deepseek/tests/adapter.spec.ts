@@ -141,6 +141,41 @@ function successfulSseResponse(): Response {
   })
 }
 
+describe('account balance', () => {
+  it('selects the first nonzero provider balance and does not expose the credential', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      balance_infos: [
+        { currency: 'CNY', total_balance: '0', granted_balance: '0', topped_up_balance: '0' },
+        { currency: 'USD', total_balance: '7.50', granted_balance: '2.50', topped_up_balance: '5.00' },
+      ],
+    }), { status: 200 }))
+    try {
+      await expect(adapterOf({ apiKey: 'balance-key' }).balance('deepseek-official')).resolves.toEqual({
+        currency: 'USD', total: '7.50', granted: '2.50', toppedUp: '5.00',
+      })
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://api.deepseek.com/user/balance',
+        expect.objectContaining({ headers: { authorization: 'Bearer balance-key' } }),
+      )
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('hides unavailable balance data instead of failing a chat surface', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', { status: 401 }))
+      .mockRejectedValueOnce(new Error('offline'))
+    try {
+      const adapter = adapterOf()
+      await expect(adapter.balance('deepseek-official')).resolves.toBeUndefined()
+      await expect(adapter.balance('deepseek-official')).resolves.toBeUndefined()
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+})
+
 describe('request image policy', () => {
   it.each([
     [

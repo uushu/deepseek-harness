@@ -20,7 +20,11 @@ import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { SESSION_SEARCH_RESULT_LIMIT } from '../../types.ts'
-import type { SessionJob as JobView } from '../../types.ts'
+import type {
+  SessionJob as JobView,
+  SessionPage,
+  SessionTrashItem,
+} from '../../types.ts'
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
 import {
   createSnapshotStore, type SnapshotStore,
@@ -122,6 +126,10 @@ export class SessionForkError extends Error {
   ) {
     super(`session fork failed: ${rpcError.code}: ${rpcError.message}`)
   }
+}
+
+function sessionOperationError(operation: string, error: RemoteFailure): Error {
+  return new Error(`session ${operation} failed: ${error.code}: ${error.message}`)
 }
 
 /** Identity-stable logical binding for one materialized Client Session. */
@@ -450,6 +458,66 @@ export class ClientSessions implements ISessions {
       if (!renamed.ok) throw new Error(`fork child rename failed: ${renamed.error.code}: ${renamed.error.message}`)
     }
     return childId
+  }
+
+  /**
+   * Move one ordinary Session into recoverable-delete state.
+   * @param sessionId - Session identity moved into the trash.
+   * @returns resolution after the Host accepted the recoverable deletion.
+   */
+  async trashSession(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.trash(sessionId)
+    if (!result.ok) throw sessionOperationError('trash', result.error)
+  }
+
+  /**
+   * Restore one recoverable Session to its surviving former workspaces.
+   * @param sessionId - Session identity leaving the trash.
+   * @returns resolution after the Host accepted the restoration.
+   */
+  async restoreSession(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.restore(sessionId)
+    if (!result.ok) throw sessionOperationError('restore', result.error)
+  }
+
+  /**
+   * Permanently destroy one recoverable Session after its writer releases it.
+   * @param sessionId - Session identity whose durable log is destroyed.
+   * @returns resolution after the Host accepted the permanent removal.
+   */
+  async purgeSession(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.purge(sessionId)
+    if (!result.ok) throw sessionOperationError('purge', result.error)
+  }
+
+  /**
+   * Read recoverable Session metadata ordered by newest deletion first.
+   * @param signal - optional cancellation for the remote list request.
+   * @returns current recoverable-delete rows.
+   */
+  async listTrashed(signal?: AbortSignal): Promise<readonly SessionTrashItem[]> {
+    const result = await this.manager.listTrashed(signal)
+    if (!result.ok) throw sessionOperationError('trash list', result.error)
+    return result.value.items
+  }
+
+  /**
+   * Read one message-aligned preview page for a recoverable Session.
+   * @param sessionId - Session identity currently in the trash.
+   * @param beforeSeq - optional backwards cursor.
+   * @param maxMessages - optional whole-message page budget.
+   * @param signal - optional cancellation for the remote page request.
+   * @returns chronological page records for the read-only preview.
+   */
+  async trashHistory(
+    sessionId: SessionId,
+    beforeSeq?: number,
+    maxMessages?: number,
+    signal?: AbortSignal,
+  ): Promise<SessionPage> {
+    const result = await this.manager.trashHistory(sessionId, beforeSeq, maxMessages, signal)
+    if (!result.ok) throw sessionOperationError('trash history', result.error)
+    return result.value
   }
 
   /**

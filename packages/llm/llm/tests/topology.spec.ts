@@ -338,3 +338,26 @@ describe('imageRequestPricing resolution', () => {
     expect(ctx.llm.imageRequestPricing('a', 'vision')).toBeUndefined()
   })
 })
+describe('balance lookup', () => {
+  it('returns the first reported route balance and forwards carrier cancellation', async () => {
+    const ctx = await setup()
+    const signal = new AbortController().signal
+    const lookup = vi.fn((_provider: string, received?: AbortSignal) => Promise.resolve(
+      received === signal
+        ? { currency: 'CNY', total: '12.34', granted: '2.34', toppedUp: '10.00' }
+        : undefined,
+    ))
+    class BalanceAdapter extends NoopAdapter {
+      override balance(provider: string, received?: AbortSignal) {
+        return lookup(provider, received)
+      }
+    }
+    ctx.llm.registerAdapter(['none'], new NoopAdapter())
+    ctx.llm.registerAdapter(['balance'], new BalanceAdapter())
+
+    await expect(ctx.llm.remoteBalance(signal)).resolves.toEqual({
+      currency: 'CNY', total: '12.34', granted: '2.34', toppedUp: '10.00',
+    })
+    expect(lookup).toHaveBeenCalledWith('balance', signal)
+  })
+})

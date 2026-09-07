@@ -842,6 +842,20 @@ export const IconGoalOutline16 = ({ size = 16, className }: IconProps) => (
   </svg>
 )
 
+/** document_outline_16: a file sheet with a folded corner and two text lines (hand-authored). */
+export const IconDocumentOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M4.5 1.25H9.12868C9.3919 1.25 9.64446 1.35536 9.83233 1.54323L12.4568 4.16777C12.6447 4.35564 12.75 4.6082 12.75 4.8714V13.75C12.75 14.3023 12.3023 14.75 11.75 14.75H4.5C3.94772 14.75 3.5 14.3023 3.5 13.75V2.25C3.5 1.69772 3.94772 1.25 4.5 1.25Z"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinejoin="round"
+    />
+    <path d="M9 1.5V4.75H12.5" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    <path d="M5.5 8.5H10.5M5.5 11H10.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+)
+
 /** sparkle_16 (Others tool-row leading glyph; hand-authored three-star
  *  approximation — the figma 43:31850 glyph is an SF Symbols "sparkles" text glyph,
  *  not extractable as vector data) */
@@ -921,5 +935,20 @@ export const IconArchiveOutline20 = ({ size = 20, className }: IconProps) => (
       fill="currentColor"
     />
     <path d="M12.7962 12.5661V11.0832H7.20548V12.5661L12.7962 12.5661Z" fill="currentColor" />
+  </svg>
+)
+
+/** ic_ds_theme_outline_16 — half-moon/sun theme glyph (the common theme
+ *  toggle: ring + solid left half + center divider). */
+export const IconThemeOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M8 0.9C4.07869 0.9 0.9 4.07869 0.9 8C0.9 11.9213 4.07869 15.1 8 15.1C11.9213 15.1 15.1 11.9213 15.1 8C15.1 4.07869 11.9213 0.9 8 0.9ZM8 2.7C5.07298 2.7 2.7 5.07298 2.7 8C2.7 10.927 5.07298 13.3 8 13.3C10.927 13.3 13.3 10.927 13.3 8C13.3 5.07298 10.927 2.7 8 2.7Z"
+      fill="currentColor"
+    />
+    <path d="M8 2.7C5.07298 2.7 2.7 5.07298 2.7 8C2.7 10.927 5.07298 13.3 8 13.3V2.7Z" fill="currentColor" />
+    <path d="M7.45 2.7H8.55V13.3H7.45V2.7Z" fill="currentColor" />
   </svg>
 )
