@@ -2,7 +2,6 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 
 /** Durable settings namespace for product-wide GUI onboarding facts. */
 const ONBOARDING_SETTINGS_NAMESPACE = 'ui-onboarding'
@@ -32,11 +31,11 @@ const PersonalizationSettingsSchema: z<PersonalizationSettings> = z.object({
 export function apply(ctx: Context): void {
   ctx.inject(['settings'], (settingsCtx) => {
     settingsCtx.settings.register(
-      settingsNamespace(ONBOARDING_SETTINGS_NAMESPACE),
+      ONBOARDING_SETTINGS_NAMESPACE,
       OnboardingSettingsSchema,
     )
     settingsCtx.settings.register(
-      settingsNamespace(PERSONALIZATION_SETTINGS_NAMESPACE),
+      PERSONALIZATION_SETTINGS_NAMESPACE,
       PersonalizationSettingsSchema,
     )
   })
