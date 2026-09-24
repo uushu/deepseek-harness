@@ -23,6 +23,10 @@ type SummaryOver = Partial<{
   cwd: string
   parentSessionId: SessionId
   origin: 'subagent'
+  projections: {
+    asOfSeq: number
+    values: { title?: string }
+  }
 }>
 
 function summary(sessionId: SessionId, over: SummaryOver = {}) {
@@ -153,39 +157,32 @@ describe('list lifecycle', () => {
     expect(manager.getListSnapshot().items.find(item => item.sessionId === S1)?.title).toBeUndefined()
   })
 
-  it('re-arms a resident session and re-seeds its title on the restore frame', async () => {
+  it('re-arms a resident session and re-seeds its title when restore republishes api-session/added', async () => {
     const api = new FakeApiClient()
     api.onList = () => Promise.resolve(ok({ items: [summary(S1)] as never[] }))
-    const manager = new SessionManager(api, fakeRemote())
+    const manager = new SessionManager(fakeRemote(api))
     await manager.refreshList()
     const session = manager.get(S1)
-    // The removal frame flags the resident instance removed (which locks its
-    // composer) and drops its projection store.
-    manager.handleHostEnvelope({ rpcId: 'removed' as never, payload: { type: 'host/session-removed', sessionId: S1 } })
+    // Trash publishes api-session/removed: the resident instance is retained,
+    // marked removed, and its projection store is dropped.
+    manager.handleSessionRemoved(S1)
     expect(session.getSnapshot().removed).toBe(true)
     expect(manager.getListSnapshot().items.find(item => item.sessionId === S1)).toBeUndefined()
 
-    // The restore frame re-arms the instance and brings the durable title
-    // back without a list refresh (the store was dropped on removal).
-    manager.handleHostEnvelope({
-      rpcId: 'restored' as never,
-      payload: { type: 'host/session-restored', sessionId: S1, blank: false, title: '正名' } as never,
-    })
+    // Restore republishes the ordinary api-session/added summary. The add path
+    // must re-arm the resident instance and reseed durable projections.
+    manager.handleSessionAdded(summary(S1, {
+      blank: false,
+      projections: { asOfSeq: 0, values: { title: '正名' } },
+    }))
     expect(session.getSnapshot().removed).toBe(false)
     expect(session.getSnapshot().blank).toBe(false)
     expect(manager.getListSnapshot().items.find(item => item.sessionId === S1)?.title).toBe('正名')
-    // The resident instance's projection face stays in sync with the row.
     expect(session.projections.faceOf('title').getSnapshot()).toBe('正名')
 
-    // A restore frame without a title leaves the row on its fallback.
-    manager.handleHostEnvelope({
-      rpcId: 'removed-again' as never,
-      payload: { type: 'host/session-removed', sessionId: S1 },
-    })
-    manager.handleHostEnvelope({
-      rpcId: 'restored-untitled' as never,
-      payload: { type: 'host/session-restored', sessionId: S1, blank: false } as never,
-    })
+    // A later restore without a title projection returns to the fallback.
+    manager.handleSessionRemoved(S1)
+    manager.handleSessionAdded(summary(S1, { blank: false }))
     expect(manager.getListSnapshot().items.find(item => item.sessionId === S1)?.title).toBeUndefined()
   })
 
