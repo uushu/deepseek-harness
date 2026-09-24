@@ -574,6 +574,13 @@ export class Session implements SessionFace {
     this.notifier.markDirty()
   }
 
+  /** `api-session/added` relay after recovery: re-arm a resident instance removed by trash. */
+  handleRestored(): void {
+    if (!this.removed) return
+    this.removed = false
+    this.notifier.markDirty()
+  }
+
   /**
    * `api-session/error` relay: the outlet for live failures with no turn position.
    * @param message - the stringified error.
