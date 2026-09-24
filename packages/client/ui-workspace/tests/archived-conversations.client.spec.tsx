@@ -60,7 +60,7 @@ function hook<T>(snapshot: T) {
 
 function mount(
   sessions: SessionListState,
-  workspaces: WorkspaceListState,
+  workspaces: WorkspaceSnapshot,
   overrides: Partial<ArchivedConversationsSectionProps> = {},
 ) {
   const unarchive = vi.fn(async () => {})
@@ -68,6 +68,7 @@ function mount(
   const props: ArchivedConversationsSectionProps = {
     close: vi.fn(),
     useSessions: hook(sessions),
+    useSessionPendingInteraction: (() => undefined) as ArchivedConversationsSectionProps['useSessionPendingInteraction'],
     useWorkspaces: hook(workspaces),
     unarchive,
     trashSession,
