@@ -1,18 +1,20 @@
 /**
  * Skills settings surface, browser half — one section whose feature-owned tabs
- * show the current project's skill catalog, read through the session-addressed
- * `skill.list` RPC: a plain catalog list and a provider/source grouping.
- * Read-only by design: skill discovery roots live in the deployment and the
- * agent presets, so editing them is a separate, write-path milestone.
+ * show the current project's Skills and create project-owned Skill files.
+ * Catalog reads and writes are session-addressed: the Host resolves the saved
+ * Session cwd, so the browser never supplies a filesystem path.
  */
 
-import type { ConnectionHandle, SessionId } from '@deepseek-ai/dsh-client-connection/client'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale) and the
 // settings shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: pulls the SlotRegistry service merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import {
   SkillsConfigTab,
@@ -47,28 +49,29 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const NS = 'settings.skills'
 
 /** Required services (cordis fiber inject). */
-export const inject = ['slots', 'locale', 'connection', 'sessions']
+export const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.skills']
 
 /**
- * Mount the Skills settings section and its two read-only tabs.
+ * Mount the Skills settings section and its two tabs.
  * @param ctx - the browser plugin context.
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-skills: section dictionaries')
 
   const t = ctx.locale.bind(NS)
-  const { api } = ctx.get('connection') as ConnectionHandle
-
   const list = async (): Promise<SkillListResult> => {
     const sessionId = ctx.sessions.list.getSnapshot().current
     if (sessionId === undefined) return { sessionless: true, skills: [] }
-    // Settings surface: include model-only bundled/internal skills so they are
-    // exposed in the list; project skills stay the only editable config items.
-    const response = await api.skills.list({ sessionId, includeInternal: true })
-    if (!response.result.ok) {
-      throw new Error(`skills.list failed: ${response.result.error.code}: ${response.result.error.message}`)
+    // Settings surfaces also show model-only entries, while the composer asks
+    // for the smaller human-invocable catalog.
+    const response = await ctx.remote.skills.list(
+      { sessionId, includeInternal: true },
+      new AbortController().signal,
+    )
+    if (!response.ok) {
+      throw new Error(`skills.list failed: ${response.error.code}: ${response.error.message}`)
     }
-    return { sessionless: false, skills: response.result.value.skills }
+    return { sessionless: false, skills: response.value.skills }
   }
   const withSession = async <T>(call: (sessionId: SessionId) => Promise<T>): Promise<T> => {
     const sessionId = ctx.sessions.list.getSnapshot().current
@@ -77,11 +80,11 @@ export function apply(ctx: ClientContext): void {
   }
   const write = (skill: SkillWriteInput): Promise<{ name: string }> =>
     withSession(async (sessionId) => {
-      const response = await api.skills.write({ sessionId, skill })
-      if (!response.result.ok) {
-        throw new Error(`skills.write failed: ${response.result.error.code}: ${response.result.error.message}`)
+      const response = await ctx.remote.skills.write({ sessionId, skill })
+      if (!response.ok) {
+        throw new Error(`skills.write failed: ${response.error.code}: ${response.error.message}`)
       }
-      return response.result.value
+      return response.value
     })
   const listInjected = (): SkillsListTabInjected => ({ list })
   const configInjected = (): SkillsConfigTabInjected => ({ write })

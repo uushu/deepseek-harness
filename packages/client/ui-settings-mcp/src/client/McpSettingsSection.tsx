@@ -4,7 +4,6 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type {
   HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type { McpSettingsLocaleKey } from './locales.ts'
 import css from './McpSettingsSection.module.css'
 
 /** One tab projected from a `settings.mcp.tab` contribution. */
@@ -113,11 +112,4 @@ export function McpSettingsSection({ t, renderSlot, useTabs }: McpSettingsSectio
       )}
     </div>
   )
-}
-
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    /** MCP section, tab, and server-card copy. */
-    'settings.mcp': McpSettingsLocaleKey
-  }
 }

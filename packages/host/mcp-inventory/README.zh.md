@@ -8,7 +8,7 @@
 
 阶段为 `pending`、`loading`、`active`、`failed` 或 `unloading`；条目没有存活根 Fiber 时为 `null`。快照刻意是时间点状态：Loader 仍是唯一生命周期权威，本包不拥有缓存、历史、来源模型、事件流或变更路径。公开载荷类型位于 `./types`，Typert 生成 `./typert` 与 `./remote` 暴露的 Host 与 Client Remote 工件。
 
-该服务仅作 Remote，刻意不声明同进程的 Cordis `Context` 合并。Client 包通过显式 [`api-remotes`](../../api/remotes/README.md) 组装消费它，而不是导入 Host 实现。
+该服务仅作 Remote，刻意不声明同进程的 Cordis `Context` 合并。Client 包通过显式 [`api-remotes`](../../api/remotes/README.zh.md) 组装消费它，而不是导入 Host 实现。
 
 ## Model Experience
 

@@ -2,13 +2,14 @@
  * Deleted-conversations settings page: the recoverable-delete surface. Lists
  * trashed sessions (title, deletion moment, remaining retention), opens a
  * read-only transcript preview per conversation, and drives the two terminal
- * actions — restore (conversation comes back; file changes stay reverted)
+ * actions — restore (conversation comes back; files remain as they are)
  * and permanent deletion (red-confirmed, irreversible). The list refetches
  * on mount and after every mutation; there is no live trash feed yet.
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import type { HistoryEntry, SessionId, TrashedSession } from '@deepseek-ai/dsh-client-runtime/client'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { SessionHistoryRecord, SessionTrashItem } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { Button, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DeletedConversationsSectionProps } from './contract/slots.ts'
 import css from './DeletedConversationsSection.module.css'
@@ -27,7 +28,7 @@ interface PreviewRow {
 }
 
 /** Fold a trashed session's history page into display rows. */
-function foldPreview(entries: readonly HistoryEntry[]): PreviewRow[] {
+function foldPreview(entries: readonly SessionHistoryRecord[]): PreviewRow[] {
   const resultsByCallId = new Map<string, string>()
   for (const { event } of entries) {
     if (event.type !== 'tool/result') continue
@@ -75,7 +76,7 @@ function contentText(content: unknown): string {
 }
 
 /** Display title fallback: durable title → cwd basename → session id. */
-function displayTitleOf(entry: TrashedSession): string {
+function displayTitleOf(entry: SessionTrashItem): string {
   if (entry.title !== undefined && entry.title !== '') return entry.title
   const parts = entry.cwd?.split(/[\\/]/).filter(part => part !== '')
   if (parts !== undefined && parts.length > 0) return parts[parts.length - 1] ?? entry.sessionId
@@ -102,17 +103,21 @@ export function DeletedConversationsSection({
   t, listTrashed, trashHistory, restore, purge,
 }: DeletedConversationsSectionProps) {
 
-  const [entries, setEntries] = useState<readonly TrashedSession[] | null>(null)
+  const [entries, setEntries] = useState<readonly SessionTrashItem[] | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [previewId, setPreviewId] = useState<SessionId | null>(null)
   const [previewRows, setPreviewRows] = useState<readonly PreviewRow[] | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<SessionId | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [purgeTarget, setPurgeTarget] = useState<TrashedSession | null>(null)
+  const [purgeTarget, setPurgeTarget] = useState<SessionTrashItem | null>(null)
   const [purging, setPurging] = useState(false)
   const [purgeError, setPurgeError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const markdownLabels = useMemo(() => ({
+    code: { copyLabel: t('copy'), copiedLabel: t('copied') },
+    footnotes: t('markdown.footnotes'),
+  }), [t])
 
   const refresh = useCallback(async () => {
     setListError(null)
@@ -128,13 +133,13 @@ export function DeletedConversationsSection({
     void refresh()
   }, [refresh])
 
-  const openPreview = useCallback(async (entry: TrashedSession) => {
+  const openPreview = useCallback(async (entry: SessionTrashItem) => {
     setPreviewId(entry.sessionId)
     setPreviewRows(null)
     setPreviewError(null)
     try {
       const page = await trashHistory(entry.sessionId, undefined, undefined)
-      setPreviewRows(foldPreview(page.events))
+      setPreviewRows(foldPreview(page.records))
     } catch (error: unknown) {
       setPreviewError(error instanceof Error ? error.message : String(error))
       setPreviewRows([])
@@ -147,7 +152,7 @@ export function DeletedConversationsSection({
     setPreviewError(null)
   }, [])
 
-  const onRestore = useCallback(async (entry: TrashedSession) => {
+  const onRestore = useCallback(async (entry: SessionTrashItem) => {
     if (busyId !== null) return
     setBusyId(entry.sessionId)
     setActionError(null)
@@ -254,7 +259,7 @@ export function DeletedConversationsSection({
                             {row.role === 'user' ? t('trash.user') : t('trash.assistant')}
                           </span>
                           <div className={css.rowBody}>
-                            <MarkdownText text={row.text} />
+                            <MarkdownText text={row.text} labels={markdownLabels} />
                           </div>
                         </div>
                       )

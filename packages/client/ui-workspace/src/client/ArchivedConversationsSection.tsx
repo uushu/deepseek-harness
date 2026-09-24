@@ -9,7 +9,8 @@
  */
 
 import { useCallback, useMemo, useState } from 'react'
-import type { SessionId, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { Button, IconTrashOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ArchivedConversationsSectionProps } from './contract/slots.ts'
 import css from './ArchivedConversationsSection.module.css'

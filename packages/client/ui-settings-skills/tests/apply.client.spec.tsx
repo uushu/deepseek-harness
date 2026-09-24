@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { Context } from '@deepseek-ai/cordis'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
+import { Context } from '@deepseek-ai/cordis'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import { TestRemote, usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
-import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply, inject, NS } from '../src/client/index.ts'
 import { SkillsConfigTab } from '../src/client/SkillsConfigTab.tsx'
 import { SkillsListTab } from '../src/client/SkillsListTab.tsx'
@@ -27,17 +27,13 @@ async function bench(current?: string) {
   await ctx.plugin(SlotRegistry).await()
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
-  const api = {
-    skills: {
-      list: vi.fn<() => Promise<unknown>>(),
-      read: vi.fn<() => Promise<unknown>>(),
-      write: vi.fn<() => Promise<unknown>>(),
-      remove: vi.fn<() => Promise<unknown>>(),
-    },
+  const skills = {
+    list: vi.fn<() => Promise<unknown>>(),
+    write: vi.fn<() => Promise<unknown>>(),
   }
-  ctx.provide('connection', { api })
-  ctx.provide('sessions', sessionsWith(current))
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, api }
+  new TestRemote(ctx, { skills } as never)
+  ctx.provide('sessions', sessionsWith(current) as never)
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, skills }
 }
 
 /** Declare the settings-section seat the section registers into. */
@@ -49,12 +45,12 @@ function declareRoot(slots: SlotRegistry): () => void {
 }
 
 function okSkillList(skills: unknown) {
-  return { result: { ok: true as const, value: { skills } } }
+  return { ok: true as const, value: { skills } }
 }
 
 describe('ui-settings-skills browser plugin', () => {
   it('declares only the services used by the Settings contributions', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection', 'sessions'])
+    expect(inject).toEqual(['slots', 'locale', 'sessions', 'remote', 'remote.skills'])
   })
 
   it('registers the section and both localized tabs without reading the catalog eagerly', async () => {
@@ -77,7 +73,7 @@ describe('ui-settings-skills browser plugin', () => {
     ])
     expect(resolveSlotLabel(tabs[0]!.options.label)).toBe('技能配置')
     expect(resolveSlotLabel(tabs[1]!.options.label)).toBe('技能列表')
-    expect(b.api.skills.list).not.toHaveBeenCalled()
+    expect(b.skills.list).not.toHaveBeenCalled()
 
     await b.ctx.fiber.dispose()
   })
@@ -116,11 +112,11 @@ describe('ui-settings-skills browser plugin', () => {
     await b.ctx.fiber.dispose()
   })
 
-  it('addresses the current session and fails loud when the RPC rejects', async () => {
+  it('addresses the current session and fails loud when the Remote rejects', async () => {
     const b = await bench('s1')
     declareRoot(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
-    b.api.skills.list.mockResolvedValue(okSkillList([
+    b.skills.list.mockResolvedValue(okSkillList([
       { name: 'demo', description: 'd', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' },
     ]))
     const listTab = b.slots.entries('settings.skills.tab')[1]!
@@ -130,36 +126,39 @@ describe('ui-settings-skills browser plugin', () => {
       sessionless: false,
       skills: [{ name: 'demo', description: 'd', modelInvocable: true, provider: 'filesystem', source: 'project-dsh' }],
     })
-    expect(b.api.skills.list).toHaveBeenCalledWith({ sessionId: 's1', includeInternal: true })
+    expect(b.skills.list).toHaveBeenCalledWith(
+      { sessionId: 's1', includeInternal: true },
+      expect.any(AbortSignal),
+    )
 
-    b.api.skills.list.mockResolvedValueOnce({ result: { ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } } })
+    b.skills.list.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
     await expect(injected.list()).rejects.toThrow('skills.list failed: REMOTE_ERROR: unavailable')
 
     // The config tab is a write-only form: write forwards with error mapping.
     const configTab = b.slots.entries('settings.skills.tab')[0]!
     const configInjected = (configTab.inject as unknown as () => SkillsConfigTabInjected)()
 
-    b.api.skills.write.mockResolvedValueOnce({ result: { ok: true, value: { name: 'demo' } } })
+    b.skills.write.mockResolvedValueOnce({ ok: true, value: { name: 'demo' } })
     await expect(configInjected.write({ name: 'demo', description: 'd', modelInvocable: true, content: 'b' }))
       .resolves.toEqual({ name: 'demo' })
-    expect(b.api.skills.write).toHaveBeenCalledWith({
+    expect(b.skills.write).toHaveBeenCalledWith({
       sessionId: 's1',
       skill: { name: 'demo', description: 'd', modelInvocable: true, content: 'b' },
     })
-    b.api.skills.write.mockResolvedValueOnce({ result: { ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } } })
+    b.skills.write.mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'unavailable' } })
     await expect(configInjected.write({ name: 'demo', description: 'd', modelInvocable: true, content: 'b' }))
       .rejects.toThrow('skills.write failed: REMOTE_ERROR: unavailable')
     await b.ctx.fiber.dispose()
   })
 
-  it('returns sessionless without any RPC when no session is current', async () => {
+  it('returns sessionless without any Remote call when no session is current', async () => {
     const b = await bench(undefined)
     declareRoot(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const listTab = b.slots.entries('settings.skills.tab')[1]!
     const injected = (listTab.inject as unknown as () => SkillsListTabInjected)()
     await expect(injected.list()).resolves.toEqual({ sessionless: true, skills: [] })
-    expect(b.api.skills.list).not.toHaveBeenCalled()
+    expect(b.skills.list).not.toHaveBeenCalled()
     await b.ctx.fiber.dispose()
   })
 
@@ -171,7 +170,7 @@ describe('ui-settings-skills browser plugin', () => {
     const injected = (configTab.inject as unknown as () => SkillsConfigTabInjected)()
     await expect(injected.write({ name: 'demo', description: 'd', modelInvocable: true, content: 'b' }))
       .rejects.toThrow('skills require an open session')
-    expect(b.api.skills.write).not.toHaveBeenCalled()
+    expect(b.skills.write).not.toHaveBeenCalled()
     await b.ctx.fiber.dispose()
   })
 

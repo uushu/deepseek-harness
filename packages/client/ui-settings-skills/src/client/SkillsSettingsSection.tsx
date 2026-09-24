@@ -4,7 +4,6 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type {
   HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SkillsSettingsLocaleKey } from './locales.ts'
 import css from './SkillsSettingsSection.module.css'
 
 /** One tab projected from a `settings.skills.tab` contribution. */
@@ -112,11 +111,4 @@ export function SkillsSettingsSection({ t, renderSlot, useTabs }: SkillsSettings
       )}
     </div>
   )
-}
-
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    /** Skills section and tab copy. */
-    'settings.skills': SkillsSettingsLocaleKey
-  }
 }

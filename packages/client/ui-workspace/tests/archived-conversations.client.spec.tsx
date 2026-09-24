@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type {
-  SessionId, SessionListState, SessionSummary, WorkspaceListState, WorkspaceView,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { WorkspaceSnapshot, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { ArchivedConversationsSectionProps } from '../src/client/contract/slots.ts'
@@ -44,15 +44,13 @@ function listState(byId: Record<string, SessionSummary>): SessionListState {
   }
 }
 
-function workspacesState(items: WorkspaceView[], archivedSessionIds: string[]): WorkspaceListState {
+function workspacesState(items: WorkspaceView[], archivedSessionIds: string[]): WorkspaceSnapshot {
   return {
     items,
     archivedSessionIds: archivedSessionIds.map(sid),
     state: 'idle',
     phase: 'ready',
     error: null,
-    baselinesReady: true,
-    recentWorkspaceId: undefined,
   }
 }
 
@@ -62,7 +60,7 @@ function hook<T>(snapshot: T) {
 
 function mount(
   sessions: SessionListState,
-  workspaces: WorkspaceListState,
+  workspaces: WorkspaceSnapshot,
   overrides: Partial<ArchivedConversationsSectionProps> = {},
 ) {
   const unarchive = vi.fn(async () => {})
@@ -70,6 +68,7 @@ function mount(
   const props: ArchivedConversationsSectionProps = {
     close: vi.fn(),
     useSessions: hook(sessions),
+    useSessionPendingInteraction: (() => undefined) as ArchivedConversationsSectionProps['useSessionPendingInteraction'],
     useWorkspaces: hook(workspaces),
     unarchive,
     trashSession,

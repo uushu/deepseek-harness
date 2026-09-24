@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type {
-  HistoryEntry, SessionId, SessionListState, TrashedSession, WorkspaceListState,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionHistoryRecord, SessionTrashItem } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { DeletedConversationsSectionProps } from '../src/client/contract/slots.ts'
@@ -20,28 +21,27 @@ const emptySessions: SessionListState = {
   ids: [], byId: {}, current: undefined, phase: 'ready',
   subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
 }
-const emptyWorkspaces: WorkspaceListState = {
-  items: [], archivedSessionIds: [], state: 'idle', phase: 'ready', error: null, baselinesReady: true,
-  recentWorkspaceId: undefined,
+const emptyWorkspaces: WorkspaceSnapshot = {
+  items: [], archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
 }
 function hook<T>(snapshot: T) {
   return function select<S>(selector: (state: T) => S): S { return selector(snapshot) }
 }
 
-const entry = (id: string, overrides: Partial<TrashedSession> = {}): TrashedSession => ({
+const entry = (id: string, overrides: Partial<SessionTrashItem> = {}): SessionTrashItem => ({
   sessionId: sid(id),
   deletedAt: Date.now() - 24 * 60 * 60 * 1000,
   ...(overrides.title === undefined ? { title: `对话 ${id}` } : {}),
   ...overrides,
 })
 
-const event = (type: string, seq: number, data: unknown): HistoryEntry =>
-  ({ event: { type, seq, time: seq, data } as never })
+const event = (type: string, seq: number, data: unknown): SessionHistoryRecord =>
+  ({ type: 'event', event: { type, seq, time: seq, data } as never })
 
 function mount(overrides: Partial<DeletedConversationsSectionProps> = {}) {
   const listTrashed = vi.fn(async () => [entry('a'), entry('b', { title: '', cwd: '/projects/实验' })])
   const trashHistory = vi.fn(async () => ({
-    events: [
+    records: [
       event('user/message', 1, { content: [{ type: 'text', text: '帮我写代码' }] }),
       event('assistant/message', 2, { message: { content: [{ type: 'text', text: '好的，看这里' }] } }),
       event('tool/call', 3, { callId: 'c1', name: 'bash', arguments: '{"cmd":"ls"}' }),
@@ -54,6 +54,7 @@ function mount(overrides: Partial<DeletedConversationsSectionProps> = {}) {
   const props: DeletedConversationsSectionProps = {
     close: vi.fn(),
     useSessions: hook(emptySessions),
+    useSessionPendingInteraction: (() => undefined) as DeletedConversationsSectionProps['useSessionPendingInteraction'],
     useWorkspaces: hook(emptyWorkspaces),
     listTrashed,
     trashHistory,

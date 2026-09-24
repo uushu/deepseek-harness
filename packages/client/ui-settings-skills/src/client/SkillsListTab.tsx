@@ -1,7 +1,7 @@
 /** Skills list tab: the current project's skill catalog with invocation badges. */
 
 import { useEffect, useId, useState, type ReactNode } from 'react'
-import type { SkillEntry } from '@deepseek-ai/dsh-client-connection/client'
+import type { SkillEntry } from '@deepseek-ai/dsh-api-session-controller/types'
 import { IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './SkillsListTab.module.css'

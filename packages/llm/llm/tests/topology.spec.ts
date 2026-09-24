@@ -250,6 +250,54 @@ describe('model discovery registry', () => {
     ])
   })
 
+  it('carries cancellation into Remote discovery and maps provider failures', async () => {
+    const ctx = await setup()
+    const discover = vi.fn()
+      .mockResolvedValueOnce([
+        { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
+        { id: '' },
+        { id: 'keep' },
+        { id: 'bare' },
+      ])
+      .mockRejectedValueOnce(new Error('endpoint offline'))
+      .mockRejectedValueOnce('provider refused')
+    ctx.llm.registerModelDiscovery('llm-example', discover)
+    const signal = new AbortController().signal
+
+    await expect(ctx.llm.remoteDiscoverModels(
+      'llm-example',
+      { baseURL: 'https://gateway.example/v1' },
+      signal,
+    )).resolves.toEqual([
+      { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
+      { id: 'bare' },
+    ])
+    expect(discover).toHaveBeenNthCalledWith(
+      1,
+      { baseURL: 'https://gateway.example/v1' },
+      signal,
+    )
+
+    await expect(ctx.llm.remoteDiscoverModels(
+      'llm-example',
+      { baseURL: 'https://gateway.example/v1' },
+      signal,
+    )).rejects.toMatchObject({
+      code: 'llm/model-discovery-rejected',
+      message: 'endpoint offline',
+      details: { settingsNs: 'llm-example', baseURL: 'https://gateway.example/v1' },
+    })
+    await expect(ctx.llm.remoteDiscoverModels(
+      'llm-example',
+      { provider: 'known-route' },
+      signal,
+    )).rejects.toMatchObject({
+      code: 'llm/model-discovery-rejected',
+      message: 'provider refused',
+      details: { settingsNs: 'llm-example' },
+    })
+  })
+
   it('refuses a namespace nothing serves and a draft with no endpoint', async () => {
     const ctx = await setup()
     ctx.llm.registerModelDiscovery('llm-example', () => Promise.resolve([]))
@@ -264,5 +312,52 @@ describe('model discovery registry', () => {
       .rejects.toMatchObject({ code: 'INVALID_DISCOVERY' })
     // Naming a route alone is enough: the adapter may know it without an endpoint.
     await expect(ctx.llm.discoverModels('llm-example', { provider: 'known-route' })).resolves.toEqual([])
+  })
+})
+
+describe('imageRequestPricing resolution', () => {
+  it('resolves the owning adapter declaration and degrades everywhere else to undefined', async () => {
+    const ctx = await setup()
+    const pricing = { priceImages: () => [] }
+    class PricingAdapter extends NoopAdapter {
+      override imageRequestPricing(provider: string, model: string): typeof pricing | undefined {
+        return provider === 'a' && model === 'vision' ? pricing : undefined
+      }
+    }
+    const dispose = ctx.llm.registerAdapter(['a'], new PricingAdapter())
+    ctx.llm.registerAdapter(['plain'], new NoopAdapter())
+
+    expect(ctx.llm.imageRequestPricing('a', 'vision')).toBe(pricing)
+    expect(ctx.llm.imageRequestPricing('a', 'other')).toBeUndefined()
+    // The base adapter declares none.
+    expect(ctx.llm.imageRequestPricing('plain', 'vision')).toBeUndefined()
+    // Unregistered providers degrade instead of throwing: callers price
+    // durable history whose route may no longer be mounted.
+    expect(ctx.llm.imageRequestPricing('missing', 'vision')).toBeUndefined()
+    dispose()
+    expect(ctx.llm.imageRequestPricing('a', 'vision')).toBeUndefined()
+  })
+})
+describe('balance lookup', () => {
+  it('returns the first reported route balance and forwards carrier cancellation', async () => {
+    const ctx = await setup()
+    const signal = new AbortController().signal
+    const lookup = vi.fn((_provider: string, received?: AbortSignal) => Promise.resolve(
+      received === signal
+        ? { currency: 'CNY', total: '12.34', granted: '2.34', toppedUp: '10.00' }
+        : undefined,
+    ))
+    class BalanceAdapter extends NoopAdapter {
+      override balance(provider: string, received?: AbortSignal) {
+        return lookup(provider, received)
+      }
+    }
+    ctx.llm.registerAdapter(['none'], new NoopAdapter())
+    ctx.llm.registerAdapter(['balance'], new BalanceAdapter())
+
+    await expect(ctx.llm.remoteBalance(signal)).resolves.toEqual({
+      currency: 'CNY', total: '12.34', granted: '2.34', toppedUp: '10.00',
+    })
+    expect(lookup).toHaveBeenCalledWith('balance', signal)
   })
 })
