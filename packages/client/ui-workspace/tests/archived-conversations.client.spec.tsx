@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceSnapshot, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -13,6 +14,12 @@ import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 const t: ArchivedConversationsSectionProps['t'] = makeTranslate(zh, commonZh)
+const useResource = (() => ({
+  status: 'none' as const,
+  value: undefined,
+  failure: undefined,
+  reload: () => {},
+})) as GlobalStandardProps['useResource']
 
 const sid = (id: string) => id as SessionId
 
@@ -69,6 +76,7 @@ function mount(
     close: vi.fn(),
     useSessions: hook(sessions),
     useSessionPendingInteraction: (() => undefined) as ArchivedConversationsSectionProps['useSessionPendingInteraction'],
+    useResource,
     useWorkspaces: hook(workspaces),
     unarchive,
     trashSession,
