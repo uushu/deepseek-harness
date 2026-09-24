@@ -548,7 +548,7 @@ export class TestSessions implements ISessions {
 
   /** List trashed sessions (the bench's trash is always empty). */
   listTrashed(_signal?: AbortSignal): ReturnType<ISessions['listTrashed']> {
-    return Promise.resolve({ ok: true, value: { items: [] } })
+    return Promise.resolve([])
   }
 
   /** Preview one trashed session (the bench's trash has no rows). */
@@ -558,7 +558,7 @@ export class TestSessions implements ISessions {
     _maxMessages: number | undefined,
     _signal?: AbortSignal,
   ): ReturnType<ISessions['trashHistory']> {
-    return Promise.resolve({ ok: true, value: { events: [], hasMore: false } })
+    return Promise.resolve({ records: [], hasMore: false })
   }
 
   /**
