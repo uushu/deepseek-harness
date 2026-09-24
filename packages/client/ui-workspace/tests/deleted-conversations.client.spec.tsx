@@ -36,7 +36,7 @@ const entry = (id: string, overrides: Partial<SessionTrashItem> = {}): SessionTr
 })
 
 const event = (type: string, seq: number, data: unknown): SessionHistoryRecord =>
-  ({ event: { type, seq, time: seq, data } as never })
+  ({ type: 'event', event: { type, seq, time: seq, data } as never })
 
 function mount(overrides: Partial<DeletedConversationsSectionProps> = {}) {
   const listTrashed = vi.fn(async () => [entry('a'), entry('b', { title: '', cwd: '/projects/实验' })])
@@ -54,6 +54,7 @@ function mount(overrides: Partial<DeletedConversationsSectionProps> = {}) {
   const props: DeletedConversationsSectionProps = {
     close: vi.fn(),
     useSessions: hook(emptySessions),
+    useSessionPendingInteraction: (() => undefined) as DeletedConversationsSectionProps['useSessionPendingInteraction'],
     useWorkspaces: hook(emptyWorkspaces),
     listTrashed,
     trashHistory,

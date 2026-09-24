@@ -195,6 +195,9 @@ export class FakeApiClient {
   onWorkspaceArchiveSession: (payload: unknown) => Promise<RemoteResult<{ archivedSessionIds: SessionId[] }>> =
     payload => Promise.resolve(ok({ archivedSessionIds: [(payload as { sessionId: SessionId }).sessionId] }))
 
+  onWorkspaceUnarchiveSession: (payload: unknown) => Promise<RemoteResult<{ archivedSessionIds: SessionId[] }>> =
+    () => Promise.resolve(ok({ archivedSessionIds: [] }))
+
   /** Remote namespaces bound to this fake's programmable unary slots and stream pumps. */
   sessionRemotes(): RuntimeRemotes {
     return {
@@ -237,6 +240,31 @@ export class FakeApiClient {
           payload,
           this.onOpenWorkspacePath(payload),
         ),
+        trash: payload => this.record(
+          'session.trash',
+          payload,
+          Promise.resolve(ok({ trashed: true as const })),
+        ),
+        restore: payload => this.record(
+          'session.restore',
+          payload,
+          Promise.resolve(ok({ restored: true as const })),
+        ),
+        purge: payload => this.record(
+          'session.purge',
+          payload,
+          Promise.resolve(ok({ purged: true as const })),
+        ),
+        listTrashed: payload => this.record(
+          'session.listTrashed',
+          payload,
+          Promise.resolve(ok({ items: [] })),
+        ),
+        trashHistory: payload => this.record(
+          'session.trashHistory',
+          payload,
+          Promise.resolve(ok({ records: [], hasMore: false })),
+        ),
         page: request => this.page(request),
         follow: (request, signal) => this.openFollow(request, signal),
         control: signal => this.openControl(signal),
@@ -272,6 +300,11 @@ export class FakeApiClient {
           'workspace.archiveSession',
           payload,
           this.onWorkspaceArchiveSession(payload),
+        ),
+        unarchiveSession: payload => this.record(
+          'workspace.unarchiveSession',
+          payload,
+          this.onWorkspaceUnarchiveSession(payload),
         ),
         follow: signal => this.openWorkspace(signal),
       },
