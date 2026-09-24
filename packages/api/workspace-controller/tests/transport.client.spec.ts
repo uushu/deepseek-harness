@@ -496,10 +496,10 @@ describe('WorkspaceController', () => {
     await expect(controller.archiveSession(sid('session')))
       .rejects.toThrow('workspace session archive failed: session/not-found: missing session')
     remote.unarchiveSession.mockResolvedValueOnce(remoteFailure(new RemoteError(
-      'workspace/storage-failed', 'storage unavailable', {},
+      'gateway/internal', 'storage unavailable', {},
     )))
     await expect(controller.unarchiveSession(sid('session')))
-      .rejects.toThrow('workspace session restore failed: workspace/storage-failed: storage unavailable')
+      .rejects.toThrow('workspace session restore failed: gateway/internal: storage unavailable')
     remote.insertSessionBefore.mockResolvedValueOnce(remoteFailure(new RemoteError(
       'workspace/move-invalid', 'invalid move', { workspaceId: wid('missing'), sessionId: sid('session') },
     )))
